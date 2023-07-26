@@ -2,7 +2,7 @@ use super::module::{GOcontrollModule, ModuleSlot};
 use std::sync::{Mutex,Arc};
 
 #[repr(u8)]
-#[derive(Copy,Clone)]
+#[derive(Debug,Copy, Clone)]
 pub enum InputModule6ChFunction {
     None = 0,
     Adc12Bit = 1,
@@ -16,6 +16,7 @@ pub enum InputModule6ChFunction {
 }
 
 #[repr(u8)]
+#[derive(Debug,Copy, Clone)]
 pub enum InputModule6ChPullDown {
     PullDownNone = 0,
     PullDown3_3k = 3,
@@ -24,6 +25,7 @@ pub enum InputModule6ChPullDown {
 }
 
 #[repr(u8)]
+#[derive(Debug,Copy, Clone)]
 pub enum InputModule6ChPullUp {
     PulUpnNone = 0,
     PullUp3_3k = 3,
@@ -32,6 +34,7 @@ pub enum InputModule6ChPullUp {
 }
 
 #[repr(u8)]
+#[derive(Debug,Copy, Clone)]
 pub enum InputModule6ChVoltageRange {
     Voltage0_5V = 0,
     Voltage0_12V = 1,
@@ -39,6 +42,7 @@ pub enum InputModule6ChVoltageRange {
 }
 
 #[repr(u8)]
+#[derive(Debug,Copy, Clone)]
 pub enum InputModuleSupply{
     On = 1,
     Off = 2,
@@ -47,23 +51,55 @@ pub enum InputModuleSupply{
 #[derive(Debug,Clone,Copy)]
 pub struct InputModule6Ch {
     slot: ModuleSlot,
-    sensor_supplies: [u8; 3],
+    channels: [Option<InputModule6ChConfig>;6],
+    supply: Inputmodule6chSupplyConfig,
     module_identifier: u32,
     pulse_counter_reset: [u8; 6],
     sync_counter: [u32; 6],
-    configuration: [u8;36],
     tx_data: [u8;56],
+}
+
+impl InputModule6Ch {
+    pub const fn new(slot: ModuleSlot, channels: [Option<InputModule6ChConfig>;6],
+    supply: Inputmodule6chSupplyConfig ) -> InputModule6Ch {
+        InputModule6Ch {
+            slot,
+            channels, supply,
+            module_identifier : 0, pulse_counter_reset : [0u8; 6], sync_counter : [0u32;6],
+            tx_data : [0u8;56]
+        }
+    }
 }
 
 impl GOcontrollModule for InputModule6Ch {
     fn put_configuration(&mut self) {
-        
-        for (place, data) in self.tx_data.iter_mut().zip(self.configuration.iter()) {
-            *place = *data;
-        }
-        self.tx_data[42] = self.sensor_supplies[0];
-        self.tx_data[43] = self.sensor_supplies[1];
-        self.tx_data[44] = self.sensor_supplies[2];
+
+        let mut index: usize = 0;
+
+        let _ = self.channels.iter().map(|channel| {
+            match channel {
+                Some(config)=> {
+                    self.tx_data[index*6] = config.function as u8;
+                    self.tx_data[index*6+1] = config.pull_up as u8 | (config.pull_down as u8) << 2 | (config.input_voltage as u8) << 6;
+                    match config.function {
+                        InputModule6ChFunction::None => (),
+                        InputModule6ChFunction::Adc12Bit | InputModule6ChFunction::AnalogmV => {
+                            self.tx_data[index*6+2] = (config.analog_filter_samples >> 8) as u8;
+                            self.tx_data[index*6+3] = config.analog_filter_samples as u8;
+                        },
+                        _ => {
+                            self.tx_data[index*6+2] = config.pulses_per_rotation;
+                        }
+                    }
+                    index +=1;
+                },
+                None => {index+=1;}
+            }
+        });
+
+        self.tx_data[42] = self.supply.sensor_supplies[0] as u8;
+        self.tx_data[43] = self.supply.sensor_supplies[1] as u8;
+        self.tx_data[44] = self.supply.sensor_supplies[2] as u8;
         
         //send spi
     }
@@ -74,53 +110,28 @@ impl GOcontrollModule for InputModule6Ch {
 }
 
 #[derive(Debug,Copy, Clone)]
-pub struct InputModule6ChBuilder {
-    slot: ModuleSlot,
-    sensor_supplies: [u8; 3],
-    configuration: [u8;36],
-    _index: usize,
+pub struct InputModule6ChConfig {
+    function: InputModule6ChFunction,
+    pull_down: InputModule6ChPullDown,
+    pull_up: InputModule6ChPullUp,
+    input_voltage: InputModule6ChVoltageRange,
+    pulses_per_rotation: u8,
+    analog_filter_samples:u16
 }
 
-impl InputModule6ChBuilder {
-    
-    pub const fn new(slot: ModuleSlot) -> InputModule6ChBuilder {
-        InputModule6ChBuilder {slot, sensor_supplies: [0;3], configuration: [0;36], _index: 0 }
+impl InputModule6ChConfig {
+    pub const fn new(function: InputModule6ChFunction, pull_down: InputModule6ChPullDown, pull_up: InputModule6ChPullUp,
+    input_voltage: InputModule6ChVoltageRange, pulses_per_rotation: u8, analog_filter_samples: u16) -> InputModule6ChConfig {
+        InputModule6ChConfig {function, pull_down, pull_up, input_voltage, pulses_per_rotation, analog_filter_samples}
     }
-    pub fn configure_channel(&mut self, function: InputModule6ChFunction, pull_down: InputModule6ChPullDown, pull_up: InputModule6ChPullUp, input_voltage: InputModule6ChVoltageRange, pulses_per_rotation: u8, analog_filter_samples:u16) -> &mut Self {
-        if self._index >= 6 {
-            panic!("Too many channels configured, this module only has 6 available channels!");
-        }
-        self.configuration[self._index*6] = function as u8;
-        self.configuration[self._index*6+1] = (pull_up as u8) | ((pull_down as u8) << 2 ) | ((input_voltage as u8) << 6);
-        match function {
-            InputModule6ChFunction::None => (),
-            InputModule6ChFunction::Adc12Bit | InputModule6ChFunction::AnalogmV => {
-                self.configuration[self._index*6+2] = (analog_filter_samples >> 8) as u8;
-                self.configuration[self._index*6+3] = analog_filter_samples as u8;
-            },
-            InputModule6ChFunction::DigitalIn | InputModule6ChFunction::FrequencyIn | InputModule6ChFunction::DutyCycleLow | InputModule6ChFunction::DutyCycleHigh | InputModule6ChFunction::Rpm | InputModule6ChFunction::PulseCounter => {
-                self.configuration[self._index*6+2] = pulses_per_rotation;
-            }
-        }
-        self._index+=1;
-        self
-    }
-    pub fn configure_supply(&mut self, supply1: InputModuleSupply, supply2: InputModuleSupply, supply3: InputModuleSupply) -> &mut Self {
-        self.sensor_supplies[0] = supply1 as u8;
-        self.sensor_supplies[1] = supply2 as u8;
-        self.sensor_supplies[2] = supply3 as u8;
-        self
-    }
+}
 
-    pub fn build(self) -> Arc<Mutex<InputModule6Ch>> {
-        Arc::new(Mutex::new(InputModule6Ch {
-            slot: self.slot,
-            sensor_supplies: self.sensor_supplies,
-            module_identifier: 0u32,
-            pulse_counter_reset: [0;6],
-            sync_counter: [0;6],
-            configuration: self.configuration,
-            tx_data: [0u8;56],
-        }))
+#[derive(Debug,Copy, Clone)]
+pub struct Inputmodule6chSupplyConfig {
+    sensor_supplies: [InputModuleSupply; 3],
+}
+impl Inputmodule6chSupplyConfig {
+    pub const fn new(supply1: InputModuleSupply, supply2: InputModuleSupply, supply3: InputModuleSupply) -> Inputmodule6chSupplyConfig {
+        Inputmodule6chSupplyConfig { sensor_supplies: [supply1,supply2,supply3] }
     }
 }

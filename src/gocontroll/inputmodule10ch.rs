@@ -82,8 +82,8 @@ impl InputModule10ChBuilder {
         self
     }
 
-    pub fn build(self) -> Arc<Mutex<InputModule10Ch>> {
-        Arc::new(Mutex::new(InputModule10Ch {
+    pub fn build(self) -> InputModule10Ch {
+        InputModule10Ch {
             slot: self.slot,
             sensor_supply: self.sensor_supply,
             module_identifier: 0u32,
@@ -91,6 +91,6 @@ impl InputModule10ChBuilder {
             sync_counter: [0;6],
             configuration: self.configuration,
             tx_data: [0u8;56],
-        }))
+        }
     }
 }

@@ -26,7 +26,7 @@ pub enum ModuleLayout {
     ModulineDisplay,
 }
 
-#[derive(Debug,Clone)]
+#[derive(Clone)]
 pub struct MainBoard {
     led_control: LedControl,
     adc: AdcConverter,
@@ -108,15 +108,15 @@ impl MainBoard {
         }
     }
 
-    pub fn add_module(&mut self, module: Arc<Mutex<dyn GOcontrollModule>>) -> Arc<Mutex<dyn GOcontrollModule>> {
-        let inserted_module  =  module;
-        let slot = inserted_module.lock().unwrap().get_slot();
-        if self.modules[slot as usize].is_none() {
-            self.modules[slot as usize] = Some(inserted_module.clone());
-            return self.modules[slot as usize].clone().unwrap()
-        }
-        panic!("module slot {} is already occupied!", slot as u8);
-    }
+    // pub const fn add_module(&mut self, module: Arc<Mutex<impl GOcontrollModule>>) -> Arc<Mutex<impl GOcontrollModule>> {
+    //     // let inserted_module  =  module;
+    //     let slot = module.lock().unwrap().get_slot();
+    //     if self.modules[slot as usize].is_none() {
+    //         self.modules[slot as usize] = Some(module.clone());
+    //         return module
+    //     }
+    //     panic!("module slot {} is already occupied!", slot as u8);
+    // }
 
     pub fn configure_modules(&self) {
         let _ = self.modules.iter()
