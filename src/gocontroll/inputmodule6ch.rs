@@ -1,5 +1,4 @@
-use super::module::{GOcontrollModule, ModuleSlot};
-use std::sync::{Mutex,Arc};
+use super::{module::{GOcontrollModule, ModuleSlot}, mainboard::MainBoard};
 
 #[repr(u8)]
 #[derive(Debug,Copy, Clone)]
@@ -72,7 +71,9 @@ impl InputModule6Ch {
 }
 
 impl GOcontrollModule for InputModule6Ch {
-    fn put_configuration(&mut self) {
+    fn put_configuration(&mut self, mainboard: &mut MainBoard) -> Result<(),()>{
+
+        mainboard.check_module(self)?;
 
         let mut index: usize = 0;
 
@@ -102,9 +103,9 @@ impl GOcontrollModule for InputModule6Ch {
         self.tx_data[44] = self.supply.sensor_supplies[2] as u8;
         
         //send spi
+        Ok(())
     }
-
-    fn get_slot(&self) ->ModuleSlot {
+    fn get_slot(&self) -> ModuleSlot {
         self.slot
     }
 }

@@ -1,10 +1,5 @@
-use std::{fs,
-    sync::{Mutex,Arc},
-};
-use rayon::prelude::*;
-
-use super::module::{GOcontrollModule, self};
-
+use std::fs;
+use super::module::GOcontrollModule;
 
 #[derive(Debug,Clone)]
 pub enum LedControl {
@@ -15,28 +10,33 @@ pub enum LedControl {
 
 #[derive(Debug,Clone)]
 pub enum AdcConverter {
+    None,
     Mcp3004,
     Ads1015,
 }
 
-#[derive(Debug,Clone)]
+#[repr(u8)]
+#[derive(Debug,Clone,Copy)]
 pub enum ModuleLayout {
-    ModulineIV,
-    ModulineMini,
-    ModulineDisplay,
+    None=0,
+    ModulineIV=7,
+    ModulineMini=3,
+    ModulineDisplay=1,
 }
 
 pub struct MainBoard {
     led_control: LedControl,
     adc: AdcConverter,
-    module: Option<&'static mut dyn GOcontrollModule>,
-    // modules: [Option<&'static mut dyn GOcontrollModule>;8],
-    module_layout: ModuleLayout,
+    pub module_layout: ModuleLayout,
+    pub modules: [Option<()>;8]
 }
 
 impl MainBoard {
-    pub const fn new(module: Option<&'static mut dyn GOcontrollModule>) -> MainBoard {
-        MainBoard { led_control: LedControl::None, adc: AdcConverter::Mcp3004, module: module, module_layout: ModuleLayout::ModulineIV }
+    pub const fn new() -> MainBoard {
+        MainBoard { led_control: LedControl::None,
+            adc: AdcConverter::None,
+            module_layout: ModuleLayout::None, 
+            modules: [None,None,None,None,None,None,None,None]}
     }
 
     pub fn initialize_main_board(&mut self) {
@@ -105,29 +105,28 @@ impl MainBoard {
             self.module_layout = ModuleLayout::ModulineDisplay;
             self.led_control = LedControl::Rukr;
             self.adc = AdcConverter::Mcp3004;
+        } else {
+            self.module_layout = ModuleLayout::ModulineIV;
+            self.led_control = LedControl::Rukr;
+            self.adc = AdcConverter::Mcp3004;
         }
     }
 
-    // pub const fn add_module(&mut self, module: Arc<Mutex<impl GOcontrollModule>>) -> Arc<Mutex<impl GOcontrollModule>> {
-    //     // let inserted_module  =  module;
-    //     let slot = module.lock().unwrap().get_slot();
-    //     if self.modules[slot as usize].is_none() {
-    //         self.modules[slot as usize] = Some(module.clone());
-    //         return module
-    //     }
-    //     panic!("module slot {} is already occupied!", slot as u8);
-    // }
+    pub fn check_module(&mut self, module: &dyn GOcontrollModule) -> Result<(),()> {
+        if self.module_layout as u8 == 0 {
+            panic!("Call MainBoard::initialize_main_board before put_configuration.\n")
+        }
 
-    pub fn configure_modules(&mut self) {
-        // let _ = for (maybe_module) in self.modules.iter() {
-        //     match *maybe_module {
-        //         Some(module) => {
-        //             module.put_configuration();
-        //         },
-        //         None => ()
-        //     }
-        // };
+        if module.get_slot() as u8 > self.module_layout as u8 {
+            println!("Could not initialize module in {}, it doesn't exist on this controller./n", module.get_slot());
+            return Err(());
+        }
 
-        self.module.as_mut().unwrap().put_configuration();
+        if self.modules[module.get_slot() as usize].is_none() {
+            self.modules[module.get_slot() as usize] = Some(());
+        } else {
+            panic!("{} is trying to be occupied by 2 or more modules, check you module initialisation.\n", module.get_slot())
+        }
+        Ok(())
     }
 }

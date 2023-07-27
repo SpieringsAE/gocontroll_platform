@@ -1,4 +1,7 @@
-use core::fmt::Debug;
+use core::fmt::{Debug,Display};
+
+use super::mainboard::MainBoard;
+
 
 ///////////////////////////////////////////////////////
 
@@ -16,19 +19,16 @@ pub enum ModuleSlot {
     Moduleslot8 = 7u8,
 }
 
+impl Display for ModuleSlot {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Module slot {}", *self as u8 +1)
+    }
+}
+
 /// The trait for modules, if you have designed your own module and wish to use it, implement this trait for it and it will be accepted.
 pub trait GOcontrollModule: Send + Sync {
     /// This function sends the module configuration over the spi bus to the module, it is called by MainBoard::configure_modules().
-    fn put_configuration(&mut self);
-    /// Simple getter for the module slot.
-    fn get_slot(&self)->ModuleSlot;
-}
-// impl Debug for dyn GOcontrollModule {
-//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-//         write!(f, "slot number {{{}}}", self.get_slot() as u8 + 1)   
-//     }
-// }
+    fn put_configuration(&mut self, mainboard: &mut MainBoard) -> Result<(),()>;
 
-// unsafe impl Send for dyn GOcontrollModule {
-    
-// }
+    fn get_slot(&self) -> ModuleSlot;
+}
