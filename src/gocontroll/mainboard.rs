@@ -1,4 +1,4 @@
-use std::fs;
+use std::{io::{self, Error},fs};
 use super::module::GOcontrollModule;
 
 #[derive(Debug,Clone)]
@@ -39,8 +39,8 @@ impl MainBoard {
             modules: [None,None,None,None,None,None,None,None]}
     }
 
-    pub fn initialize_main_board(&mut self) {
-        let hw = fs::read_to_string("/sys/firmware/devicetree/base/hardware").unwrap();
+    pub fn initialize_main_board(&mut self, modules: &mut Vec<&mut dyn GOcontrollModule>) -> io::Result<()>{
+        let hw = fs::read_to_string("/sys/firmware/devicetree/base/hardware")?;
         if hw.eq("Moduline IV V3.06") {
             self.module_layout = ModuleLayout::ModulineIV;
             self.led_control = LedControl::Rukr;
@@ -110,13 +110,11 @@ impl MainBoard {
             self.led_control = LedControl::Rukr;
             self.adc = AdcConverter::Mcp3004;
         }
+        modules.iter_mut().try_for_each(|module| -> Result<(),()>{ let _ = module.put_configuration(self)?; Ok(())}).unwrap_or(return Err(io::Error::from(io::ErrorKind::InvalidData)));
+        Ok(())
     }
 
     pub fn check_module(&mut self, module: &dyn GOcontrollModule) -> Result<(),()> {
-        if self.module_layout as u8 == 0 {
-            panic!("Call MainBoard::initialize_main_board before put_configuration.\n")
-        }
-
         if module.get_slot() as u8 > self.module_layout as u8 {
             println!("Could not initialize module in {}, it doesn't exist on this controller./n", module.get_slot());
             return Err(());

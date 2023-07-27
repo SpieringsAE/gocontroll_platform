@@ -27,7 +27,7 @@ impl Display for ModuleSlot {
 
 /// The trait for modules, if you have designed your own module and wish to use it, implement this trait for it and it will be accepted.
 pub trait GOcontrollModule: Send + Sync {
-    /// This function sends the module configuration over the spi bus to the module, it is called by MainBoard::configure_modules().
+    /// Initializes the module.
     fn put_configuration(&mut self, mainboard: &mut MainBoard) -> Result<(),()>;
 
     fn get_slot(&self) -> ModuleSlot;
