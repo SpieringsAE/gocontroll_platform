@@ -3,7 +3,7 @@ use std::{fs,
 };
 use rayon::prelude::*;
 
-use super::module::GOcontrollModule;
+use super::module::{GOcontrollModule, self};
 
 
 #[derive(Debug,Clone)]
@@ -26,17 +26,17 @@ pub enum ModuleLayout {
     ModulineDisplay,
 }
 
-#[derive(Clone)]
 pub struct MainBoard {
     led_control: LedControl,
     adc: AdcConverter,
-    pub modules: [Option<Arc<Mutex<dyn GOcontrollModule>>>;8],
+    module: Option<&'static mut dyn GOcontrollModule>,
+    // modules: [Option<&'static mut dyn GOcontrollModule>;8],
     module_layout: ModuleLayout,
 }
 
 impl MainBoard {
-    pub const fn new() -> MainBoard {
-        MainBoard { led_control: LedControl::None, adc: AdcConverter::Mcp3004, modules: [None,None,None,None,None,None,None,None], module_layout: ModuleLayout::ModulineIV }
+    pub const fn new(module: Option<&'static mut dyn GOcontrollModule>) -> MainBoard {
+        MainBoard { led_control: LedControl::None, adc: AdcConverter::Mcp3004, module: module, module_layout: ModuleLayout::ModulineIV }
     }
 
     pub fn initialize_main_board(&mut self) {
@@ -118,9 +118,16 @@ impl MainBoard {
     //     panic!("module slot {} is already occupied!", slot as u8);
     // }
 
-    pub fn configure_modules(&self) {
-        let _ = self.modules.iter()
-            .flatten()
-            .map(|module| module.lock().unwrap().put_configuration());
-        }
+    pub fn configure_modules(&mut self) {
+        // let _ = for (maybe_module) in self.modules.iter() {
+        //     match *maybe_module {
+        //         Some(module) => {
+        //             module.put_configuration();
+        //         },
+        //         None => ()
+        //     }
+        // };
+
+        self.module.as_mut().unwrap().put_configuration();
+    }
 }
