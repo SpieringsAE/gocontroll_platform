@@ -1,4 +1,4 @@
-use std::{io::{self, Error, prelude::*},fs};
+use std::{io::{self, Error, prelude::*},fs, simd::StdFloat};
 use super::module::{GOcontrollModule, ModuleSlot};
 use spidev::{Spidev, SpidevOptions, SpidevTransfer,SpiModeFlags};
 
@@ -35,7 +35,7 @@ pub struct MainBoard {
     led_control: LedControl,
     adc: AdcConverter,
     pub module_layout: ModuleLayout,
-    pub modules: [Option<()>;8],
+    pub modules: [Option<usize>;8],
     spidevs: [Option<Spidev>;8],
     resets: [Option<fs::File>;8],
 }
@@ -61,6 +61,9 @@ const RESETS: [&str;8] = [
     "/sys/class/leds/ResetM-7/brightness",
     "/sys/class/leds/ResetM-8/brightness",
 ];
+
+const BOOTMESSAGELENGTHCHECK: usize = 61;
+const BOOTMESSAGELENGTH: usize = 46;
 
 impl MainBoard {
     pub const fn new() -> MainBoard {
@@ -181,20 +184,43 @@ impl MainBoard {
         }
 
         if self.modules[module.get_slot() as usize].is_none() {
-            self.modules[module.get_slot() as usize] = Some(());
+            self.modules[module.get_slot() as usize] = Some(module.get_slot() as usize);
         } else {
             panic!("{} is trying to be occupied by 2 or more modules, check you module initialisation.\n", module.get_slot())
         }
         Ok(())
     }
 
-    pub fn init_module(&mut self, slot: usize) -> io::Result<()> {
-        self.reset_module_state(slot, ModuleResetState::High)?;
-        self.spi_dummy_send(slot)?;
+    pub fn init_modules(&mut self) -> io::Result<()> {
+        static mut BOOTTX: [u8;BOOTMESSAGELENGTHCHECK] = [0;BOOTMESSAGELENGTHCHECK];
+        static mut BOOTRX: [u8;BOOTMESSAGELENGTHCHECK] = [0;BOOTMESSAGELENGTHCHECK];
+        let mut module_state: [u8;8];
+        let module_iter = self.modules.iter().flatten();
+        for slot in module_iter {
+            self.reset_module_state(i, ModuleResetState::High)?;
+        }
+        for slot in module_iter {
+            self.spi_dummy_send(i)?;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        for slot in module_iter {
+            self.reset_module_state(slot, ModuleResetState::Low)?;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        for slot in module_iter {
+            unsafe{
+                BOOTTX[6] = 0;
+                self.escape_module_bootloader(slot, BOOTTX, BOOTRX)?;
+                if BOOTRX[0] == 9 {
+                    
+                }
+            }
+        }
+        std::thread::sleep(std::time::Duration::from_millis(5));
         Ok(())
     }
 
-    pub fn spi_dummy_send(&mut self, slot: usize) -> io::Result<()> {
+    fn spi_dummy_send(&mut self, slot: usize) -> io::Result<()> {
         const SPIDUMMY: [u8;6] = [1,2,3,4,5,6];
         self.spidevs[slot].as_mut().expect("Incorrectly initialized spi device").write(&SPIDUMMY)?;
         Ok(())
@@ -204,6 +230,33 @@ impl MainBoard {
         const STATE: [&str;2] = ["0", "1"];
         self.resets[slot].as_mut().expect("Incorrectly initialized module reset").write(STATE[state as usize].as_bytes())?;
         Ok(())
+    }
+
+    fn escape_module_bootloader(&mut self, slot: usize, &mut tx: [u8], &mut rx: [u8]) ->io::Result<()> {
+        unsafe{
+            tx[0] = 19;
+            tx[1] = BOOTMESSAGELENGTH -1;
+            tx[2] = 19;
+            tx[BOOTMESSAGELENGTH-1] = Self::module_checksum(&tx, BOOTMESSAGELENGTH);
+            let mut transfer = SpidevTransfer::read_write(&tx, rx);
+        }
+        
+        self.spidevs[slot].as_mut().expect("Incorrectly initialized spi device").transfer(transfer)?;
+        unsafe{
+            if Self::module_checksum(rx, BOOTMESSAGELENGTH) == rx[BOOTMESSAGELENGTH-1] {
+                Ok(())
+            } else {
+                io::Error::from(io::ErrorKind::InvalidData)
+            }
+        }
+
+    }
+
+    fn module_checksum(data:[u8], length:usize) -> u8 {
+        let mut check_sum:u8 = 0;
+        for index in 0..length-1 {
+            check_sum = check_sum.wrapping_add(data[index]);
+        }
     }
 
     fn create_spi(slot: usize) -> io::Result<Spidev> {
