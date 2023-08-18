@@ -50,7 +50,7 @@ mod tests {
         InputModuleSupply::On);
         
         unsafe {
-            let _ = MAINBOARD.initialize_main_board(&mut vec![&mut INPUT_MODULE,&mut OUTPUT_MODULE,&mut INPUT_MODULE_10CH]).expect("Failed to initialize modules");
+            let _ = MAINBOARD.initialize_main_board(&mut [&mut INPUT_MODULE,&mut OUTPUT_MODULE,&mut INPUT_MODULE_10CH]).expect("Failed to initialize modules");
         };
     }
 }
