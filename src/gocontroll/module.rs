@@ -1,10 +1,21 @@
 use core::fmt::{Debug,Display};
 use std::io;
 
+use spidev::Spidev;
+
 use super::mainboard::MainBoard;
 
 
 ///////////////////////////////////////////////////////
+
+#[allow(unused)]
+pub const BOOTMESSAGELENGTHCHECK: usize = 61;
+#[allow(unused)]
+pub const BOOTMESSAGELENGTH: usize = 46;
+#[allow(unused)]
+pub const MESSAGEOVERLENGTH: usize = 1;
+#[allow(unused)]
+pub const SPIERRORMESSAGE: &str = "Incorrectly initialized spi device";
 
 #[allow(unused)]
 #[repr(u8)]
@@ -49,4 +60,12 @@ pub trait GOcontrollModule: Send + Sync {
     fn put_configuration(&mut self, mainboard: &mut MainBoard) -> io::Result<()>;
 
     fn get_slot(&self) -> ModuleSlot;
+
+    fn send_module_spi(&mut self, command: u8, direction: CommunicationDirection, module_id: u8, message_type: MessageType, message_index: u8, length:usize) -> io::Result<()>;
+
+    fn send_receive_module_spi(&mut self, command: u8, direction: CommunicationDirection, module_id: u8, message_type: MessageType, message_index: u8, length:usize) -> io::Result<()>;
+
+    fn escape_module_bootloader(&mut self) ->io::Result<()>;
+
+    fn spi_dummy_send(&mut self) -> io::Result<()>;
 }

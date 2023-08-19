@@ -1,5 +1,7 @@
 use std::io;
 
+use spidev::Spidev;
+
 use super::module::{GOcontrollModule, ModuleSlot, MessageType, CommunicationDirection};
 use super::inputmodule6ch::InputModuleSupply;
 use super::mainboard::MainBoard;
@@ -68,13 +70,14 @@ impl InputModule10ChConfig {
 }
 
 #[allow(unused)]
-#[derive(Debug,Clone,Copy)]
+#[derive(Debug)]
 pub struct InputModule10Ch {
     slot: ModuleSlot,
     pulse_counter_reset: [u8; 10],
     sync_counter: [u32; 6],
     tx_data: [u8;56],
-    rx_data: [u8;56]
+    rx_data: [u8;56],
+    spidev: Option<Spidev>,
 }
 
 #[allow(unused)]
@@ -96,20 +99,18 @@ impl InputModule10Ch {
         }
         
         tx_data[46] = sensor_supply as u8;
-        InputModule10Ch { slot, pulse_counter_reset: [0u8;10], sync_counter: [0u32;6], tx_data, rx_data: [0u8;56] }
+        InputModule10Ch { slot, pulse_counter_reset: [0u8;10], sync_counter: [0u32;6], tx_data, rx_data: [0u8;56], spidev: None }
     }
 
-    pub fn get_values(&mut self, mainboard: &mut MainBoard) -> io::Result<[i32;10]> {
+    pub async fn get_values(&mut self) -> io::Result<[i32;10]> {
         let mut result: [i32;10] = [0;10];
-        mainboard.send_receive_module_spi(
+        MainBoard::send_receive_module_spi(
             1,
             CommunicationDirection::FromModule,
             MODULEID,
             MessageType::Data,
             1,
-            self.slot as usize,
-            &mut self.tx_data,
-            &mut self.rx_data,
+            self,
             MESSAGELENGTH
         )?;
         for i in 0..9 {
@@ -118,42 +119,55 @@ impl InputModule10Ch {
         Ok(result)
     }
 
-    pub fn reset_pulse_counter(&mut self, mainboard: &mut MainBoard, channel: InputModuleChannel, value: i32) -> io::Result<()> {
+    pub async fn reset_pulse_counter(&mut self, channel: InputModuleChannel, value: i32) -> io::Result<()> {
         self.tx_data[6] = channel as u8;
         self.tx_data[7] = value as u8;
         self.tx_data[8] = {value >> 8} as u8;
         self.tx_data[9] = {value >> 16} as u8;
         self.tx_data[10] = {value >> 24} as u8;
-        mainboard.send_module_spi(
+        MainBoard::send_module_spi(
             1,
             CommunicationDirection::ToModule,
             MODULEID,
             MessageType::Data,
             2,
-            self.slot as usize,
-            &mut self.tx_data,
+            self,
             MESSAGELENGTH
         )
     }
+
 }
 
 impl GOcontrollModule for InputModule10Ch {
     fn put_configuration(&mut self, mainboard: &mut MainBoard) -> io::Result<()>{
 
         mainboard.check_module(self)?;
+
+        self.spidev = Some(MainBoard::create_spi(self.slot as usize)?);
         
-        mainboard.send_module_spi(
+        MainBoard::send_module_spi(
             1,
             CommunicationDirection::ToModule,
             MODULEID,
             MessageType::Configuration,
             1,
-            self.slot as usize,
-            &mut self.tx_data,
+            self,
             MESSAGELENGTH
         )
     }
     fn get_slot(&self) -> ModuleSlot {
         self.slot
+    }
+
+    fn get_spidev(&self) -> Option<Spidev> {
+        self.spidev
+    }
+
+    fn get_tx(&self) -> &[u8] {
+        &self.tx_data
+    }
+
+    fn get_rx(&self) -> &[u8] {
+        &self.rx_data
     }
 }

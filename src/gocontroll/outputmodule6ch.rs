@@ -1,5 +1,7 @@
 use std::io;
 
+use spidev::Spidev;
+
 use super::{module::{GOcontrollModule,ModuleSlot,MessageType,CommunicationDirection},
     mainboard::MainBoard};
 
@@ -76,12 +78,13 @@ const MODULEID:u8 =22;
 const MESSAGELENGTH:usize = 44;
 
 #[allow(unused)]
-#[derive(Debug,Clone,Copy)]
+#[derive(Debug)]
 pub struct OutputModule6Ch {
     slot: ModuleSlot,
     tx_data: [u8;50],
     tx_data_2: [u8;50],
-    rx_data: [u8;50]
+    rx_data: [u8;50],
+    spidev: Option<Spidev>,
 }
 
 #[allow(unused)]
@@ -129,10 +132,10 @@ impl OutputModule6Ch {
                 None => {index +=1}
             }
         }
-        OutputModule6Ch {slot, tx_data, tx_data_2, rx_data: [0u8;50]}
+        OutputModule6Ch {slot, tx_data, tx_data_2, rx_data: [0u8;50], spidev: None}
     }
 
-    pub fn set_outputs(&mut self, mainboard: &mut MainBoard, channel1: u16, channel2: u16, channel3: u16, channel4: u16, channel5: u16, channel6:u16) -> io::Result<OutputModule6ChFeedback> {
+    pub fn set_outputs_get_feedback(&mut self, channel1: u16, channel2: u16, channel3: u16, channel4: u16, channel5: u16, channel6:u16) -> io::Result<OutputModule6ChFeedback> {
         let mut feedback: OutputModule6ChFeedback = OutputModule6ChFeedback { temperature: 0, groundshift: 0, channel1_current: 0, channel2_current: 0, channel3_current: 0, channel4_current: 0, channel5_current: 0, channel6_current: 0, fault_codes: 0x10000000 };
         let mut potential_err: Option<io::Error> = None;  
         self.tx_data[6] = channel1 as u8;
@@ -148,15 +151,13 @@ impl OutputModule6Ch {
         self.tx_data[36] = channel6 as u8;
         self.tx_data[37] = {channel6 >> 8} as u8;
 
-        mainboard.send_receive_module_spi(
+        MainBoard::send_receive_module_spi(
             1, 
             CommunicationDirection::ToModule,
             MODULEID,
             MessageType::Data,
             1,
-            self.slot as usize,
-            &mut self.tx_data,
-            &mut self.rx_data,
+            self,
             MESSAGELENGTH
         ).is_err_and(|err| if err.kind() == io::ErrorKind::InvalidData {
             feedback.fault_codes |= 0x20000000;
@@ -185,30 +186,40 @@ impl GOcontrollModule for OutputModule6Ch {
     fn put_configuration(&mut self, mainboard: &mut MainBoard) -> io::Result<()> {
         mainboard.check_module(self)?;
 
-        mainboard.send_module_spi(
+        MainBoard::send_module_spi(
             1,
             CommunicationDirection::ToModule,
             MODULEID,
             MessageType::Configuration,
             1,
-            self.slot as usize,
-            &mut self.tx_data,
+            self,
             MESSAGELENGTH
         )?;
         std::thread::sleep(std::time::Duration::from_micros(500));
-        mainboard.send_module_spi(
-            1, 
-            CommunicationDirection::ToModule, 
-            MODULEID, 
-            MessageType::Configuration, 
+        MainBoard::send_module_spi(
+            1,
+            CommunicationDirection::ToModule,
+            MODULEID,
+            MessageType::Configuration,
             2,
-            self.slot as usize, 
-            &mut self.tx_data_2, 
+            self,
             MESSAGELENGTH
         )        
     }
 
     fn get_slot(&self) -> ModuleSlot {
         self.slot
+    }
+
+    fn get_spidev(&self) -> Option<Spidev> {
+        self.spidev
+    }
+
+    fn get_tx(&self) -> &[u8] {
+        &self.tx_data
+    }
+
+    fn get_rx(&self) -> &[u8] {
+        &self.rx_data
     }
 }

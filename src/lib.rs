@@ -13,8 +13,8 @@ mod tests {
 
     #[test]
     fn it_works() {
-        static mut MAINBOARD: MainBoard = MainBoard::new();
-        static mut INPUT_MODULE: InputModule6Ch = InputModule6Ch::new( ModuleSlot::Moduleslot1,
+        let mut mainboard: MainBoard = MainBoard::new();
+        let mut input_module: InputModule6Ch = InputModule6Ch::new( ModuleSlot::Moduleslot1,
         [
             Some(InputModule6ChConfig::new(InputModule6ChFunction::AnalogmV, InputModule6ChPullDown::PullDown10k, InputModule6ChPullUp::PulUpnNone, InputModule6ChVoltageRange::Voltage0_5V,0u8,10u16)),
             None,
@@ -24,7 +24,7 @@ mod tests {
             None
         ],
         Inputmodule6chSupplyConfig::new(InputModuleSupply::On, InputModuleSupply::On, InputModuleSupply::On));
-        static mut OUTPUT_MODULE: OutputModule6Ch = OutputModule6Ch::new(ModuleSlot::Moduleslot2,
+        let mut output_module: OutputModule6Ch = OutputModule6Ch::new(ModuleSlot::Moduleslot2,
         [
             Some(OutputModule6ChConfig::new(OutputModule6ChFunction::HalfBridge, Some(5000), None, None)),
             None,
@@ -34,7 +34,7 @@ mod tests {
             None,
         ],
         OutputModule6ChFrequecyConfig::new(OutputModule6ChFrequency::Freq1KHz,OutputModule6ChFrequency::Freq1KHz, OutputModule6ChFrequency::Freq1KHz));
-        static mut INPUT_MODULE_10CH: InputModule10Ch = InputModule10Ch::new(ModuleSlot::Moduleslot3,
+        let mut input_module_10ch: InputModule10Ch = InputModule10Ch::new(ModuleSlot::Moduleslot3,
         [
             None,
             None,
@@ -48,9 +48,11 @@ mod tests {
             None,
         ],
         InputModuleSupply::On);
-        
-        unsafe {
-            let _ = MAINBOARD.initialize_main_board(&mut [&mut INPUT_MODULE,&mut OUTPUT_MODULE,&mut INPUT_MODULE_10CH]).expect("Failed to initialize modules");
-        };
+        let modules: &mut [&mut dyn GOcontrollModule] = &mut [&mut input_module, &mut output_module, &mut input_module_10ch];
+        let main_init_fut = mainboard.initialize_main_board(modules);
+
+        //other initialisation
+
+        futures::executor::block_on(main_init_fut).expect("failed to initialize main board");
     }
 }
