@@ -2,7 +2,7 @@ use std::io;
 
 use spidev::Spidev;
 
-use super::module::{GOcontrollModule, ModuleSlot, MessageType, CommunicationDirection};
+use super::module::{GOcontrollModule, ModuleSlot, MessageType, CommunicationDirection,BOOTMESSAGELENGTH, BOOTMESSAGELENGTHCHECK, EscapeBootloaderRespnse};
 use super::inputmodule6ch::InputModuleSupply;
 use super::mainboard::MainBoard;
 
@@ -75,8 +75,8 @@ pub struct InputModule10Ch {
     slot: ModuleSlot,
     pulse_counter_reset: [u8; 10],
     sync_counter: [u32; 6],
-    tx_data: [u8;56],
-    rx_data: [u8;56],
+    tx: [u8;56],
+    rx: [u8;56],
     spidev: Option<Spidev>,
 }
 
@@ -99,39 +99,37 @@ impl InputModule10Ch {
         }
         
         tx_data[46] = sensor_supply as u8;
-        InputModule10Ch { slot, pulse_counter_reset: [0u8;10], sync_counter: [0u32;6], tx_data, rx_data: [0u8;56], spidev: None }
+        InputModule10Ch { slot, pulse_counter_reset: [0u8;10], sync_counter: [0u32;6], tx: tx_data, rx: [0u8;56], spidev: None }
     }
 
     pub async fn get_values(&mut self) -> io::Result<[i32;10]> {
         let mut result: [i32;10] = [0;10];
-        MainBoard::send_receive_module_spi(
+        self.send_receive_module_spi(
             1,
             CommunicationDirection::FromModule,
             MODULEID,
             MessageType::Data,
             1,
-            self,
             MESSAGELENGTH
         )?;
         for i in 0..9 {
-            result[i] = i32::from_le_bytes(self.rx_data[i*4+6..i*4+10].try_into().unwrap());
+            result[i] = i32::from_le_bytes(self.rx[i*4+6..i*4+10].try_into().unwrap());
         }
         Ok(result)
     }
 
     pub async fn reset_pulse_counter(&mut self, channel: InputModuleChannel, value: i32) -> io::Result<()> {
-        self.tx_data[6] = channel as u8;
-        self.tx_data[7] = value as u8;
-        self.tx_data[8] = {value >> 8} as u8;
-        self.tx_data[9] = {value >> 16} as u8;
-        self.tx_data[10] = {value >> 24} as u8;
-        MainBoard::send_module_spi(
+        self.tx[6] = channel as u8;
+        self.tx[7] = value as u8;
+        self.tx[8] = {value >> 8} as u8;
+        self.tx[9] = {value >> 16} as u8;
+        self.tx[10] = {value >> 24} as u8;
+        self.send_module_spi(
             1,
             CommunicationDirection::ToModule,
             MODULEID,
             MessageType::Data,
             2,
-            self,
             MESSAGELENGTH
         )
     }
@@ -145,13 +143,12 @@ impl GOcontrollModule for InputModule10Ch {
 
         self.spidev = Some(MainBoard::create_spi(self.slot as usize)?);
         
-        MainBoard::send_module_spi(
+        self.send_module_spi(
             1,
             CommunicationDirection::ToModule,
             MODULEID,
             MessageType::Configuration,
             1,
-            self,
             MESSAGELENGTH
         )
     }
@@ -159,15 +156,54 @@ impl GOcontrollModule for InputModule10Ch {
         self.slot
     }
 
-    fn get_spidev(&self) -> Option<Spidev> {
-        self.spidev
+    fn spi_dummy_send(&mut self) -> io::Result<()> {
+        const SPIDUMMY: [u8;6] = [1,2,3,4,5,6];
+        let mut transfer = spidev::SpidevTransfer::write(&SPIDUMMY);
+        self.spidev.as_mut().unwrap().transfer(&mut transfer)?;
+        Ok(())
     }
 
-    fn get_tx(&self) -> &[u8] {
-        &self.tx_data
+    fn escape_module_bootloader(&mut self) ->io::Result<EscapeBootloaderRespnse> {
+        let mut tx: [u8;BOOTMESSAGELENGTHCHECK] = [0;BOOTMESSAGELENGTHCHECK];
+        let mut rx: [u8;BOOTMESSAGELENGTHCHECK] = [0;BOOTMESSAGELENGTHCHECK];
+        tx[0] = 19;
+        tx[1] = {BOOTMESSAGELENGTH -1} as u8;
+        tx[2] = 19;
+        tx[BOOTMESSAGELENGTH-1] = MainBoard::module_checksum(&tx, BOOTMESSAGELENGTH)?;
+        let mut transfer = spidev::SpidevTransfer::read_write(&self.tx, &mut rx);
+        
+        self.spidev.as_mut().unwrap().transfer(&mut transfer)?;
+        MainBoard::module_checksum(&rx, BOOTMESSAGELENGTH)?;
+        Ok(EscapeBootloaderRespnse{ bootloader: rx[0], firmware: rx[6]})
     }
 
-    fn get_rx(&self) -> &[u8] {
-        &self.rx_data
+    fn send_module_spi(&mut self, command: u8, direction: CommunicationDirection, module_id: u8, message_type: MessageType, message_index: u8, length:usize) -> io::Result<()> {
+        self.tx[0] = command;
+        self.tx[1] = {length-1} as u8;
+        self.tx[2] = direction as u8;
+        self.tx[3] = module_id;
+        self.tx[4] = message_type as u8;
+        self.tx[5] = message_index;
+        self.tx[length-1] = MainBoard::module_checksum(&self.tx, length)?;
+        let mut transfer = spidev::SpidevTransfer::write(&self.tx);
+        self.spidev.as_mut().unwrap().transfer(&mut transfer)?;
+        Ok(())
+    }
+
+    fn send_receive_module_spi(&mut self, command: u8, direction: CommunicationDirection, module_id: u8, message_type: MessageType, message_index: u8, length:usize) -> io::Result<()> {
+        self.tx[0] = command;
+        self.tx[1] = {length-1} as u8;
+        self.tx[2] = direction as u8;
+        self.tx[3] = module_id;
+        self.tx[4] = message_type as u8;
+        self.tx[5] = message_index;
+        self.tx[length-1] = MainBoard::module_checksum(&self.tx, length)?;
+        self.rx[0] = 0;
+        self.rx[length-1] = 0;
+
+        let mut transfer = spidev::SpidevTransfer::read_write(&self.tx,&mut self.rx);
+        self.spidev.as_mut().unwrap().transfer(&mut transfer)?;
+        MainBoard::module_checksum(&self.rx, length)?;
+        Ok(())        
     }
 }

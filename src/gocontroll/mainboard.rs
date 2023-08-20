@@ -1,6 +1,6 @@
-use std::{io::{self, prelude::*},fs, borrow::BorrowMut};
-use super::module::{GOcontrollModule, CommunicationDirection, MessageType};
-use spidev::{Spidev, SpidevOptions, SpidevTransfer,SpiModeFlags};
+use std::{io::{self, prelude::*},fs};
+use super::module::GOcontrollModule;
+use spidev::{Spidev, SpidevOptions,SpiModeFlags};
 use i2c_linux::I2c;
 
 #[allow(unused)]
@@ -204,38 +204,33 @@ impl MainBoard {
     }
 
     fn init_modules(&mut self, modules: &mut [&mut dyn GOcontrollModule]) -> io::Result<()> {
-        let mut boottx: [u8;BOOTMESSAGELENGTHCHECK] = [0;BOOTMESSAGELENGTHCHECK];
-        let mut bootrx: [u8;BOOTMESSAGELENGTHCHECK] = [0;BOOTMESSAGELENGTHCHECK];
+        
         let mut module_state: [u8;8] = [0;8];
-        for module in modules {
+        for module in &mut *modules {
             self.reset_module_state(&(module.get_slot() as usize), ModuleResetState::High)?;
         }
-        for module in modules {
-            self.spi_dummy_send(module.borrow_mut())?;
+        for module in &mut *modules {
+            module.spi_dummy_send()?;
         }
         std::thread::sleep(std::time::Duration::from_millis(5));
-        for module in modules {
+        for module in &mut *modules {
             self.reset_module_state(&(module.get_slot() as usize), ModuleResetState::Low)?;
         }
         std::thread::sleep(std::time::Duration::from_millis(10));
-        // for slot in &module_iter {
-        for module in modules{
-            boottx[6] = 0;
-            self.escape_module_bootloader(module.borrow_mut(), &mut boottx, &mut bootrx)?;
-            if bootrx[0] == 9 {
-                module_state[module.get_slot() as usize] = bootrx[6];
+        for module in &mut *modules{
+        let escape_res = module.escape_module_bootloader()?;
+            if escape_res.bootloader == 9 {
+                module_state[module.get_slot() as usize] = escape_res.firmware;
             }
         }
         std::thread::sleep(std::time::Duration::from_millis(5));
         let mut module: usize = 0;
         let mut fault_counter: u8 = 0;
         while module < modules.len() {
-            bootrx[6] = 0;
-            self.escape_module_bootloader(modules[module], &mut boottx, &mut bootrx)?;
             if fault_counter > 5 {
                 panic!("module {module} is unable to escape the bootloader");
             }
-            if bootrx[6] == 20 {
+            if modules[module].escape_module_bootloader()?.firmware == 20 {
                 module += 1;
                 fault_counter = 0;
             } else if module_state[module] == 20 {
@@ -243,8 +238,7 @@ impl MainBoard {
                 std::thread::sleep(std::time::Duration::from_millis(5));
                 self.reset_module_state(&module, ModuleResetState::Low)?;
                 std::thread::sleep(std::time::Duration::from_millis(5));
-                bootrx[6] = 0;
-                self.escape_module_bootloader(modules[module], &mut boottx, &mut bootrx)?;
+                modules[module].escape_module_bootloader()?;
                 fault_counter += 1;
             }
         }

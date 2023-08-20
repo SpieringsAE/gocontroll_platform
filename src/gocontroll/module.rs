@@ -1,8 +1,6 @@
 use core::fmt::{Debug,Display};
 use std::io;
 
-use spidev::Spidev;
-
 use super::mainboard::MainBoard;
 
 
@@ -48,6 +46,11 @@ pub enum MessageType {
     Feedback = 4u8,
 }
 
+pub struct EscapeBootloaderRespnse {
+    pub bootloader: u8,
+    pub firmware:u8
+}
+
 impl Display for ModuleSlot {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "Module slot {}", *self as u8 +1)
@@ -65,7 +68,7 @@ pub trait GOcontrollModule: Send + Sync {
 
     fn send_receive_module_spi(&mut self, command: u8, direction: CommunicationDirection, module_id: u8, message_type: MessageType, message_index: u8, length:usize) -> io::Result<()>;
 
-    fn escape_module_bootloader(&mut self) ->io::Result<()>;
+    fn escape_module_bootloader(&mut self) -> io::Result<EscapeBootloaderRespnse>;
 
     fn spi_dummy_send(&mut self) -> io::Result<()>;
 }
