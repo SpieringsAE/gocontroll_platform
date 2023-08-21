@@ -285,8 +285,10 @@ impl MainBoard {
                 Ok(())
             },
             AdcConverter::Mcp3004(adcs) => {
-                for device in fs::read_dir("/sys/bus/iio/devices/")? {     
-                    let mut dev_path = device?.path();
+                for device in fs::read_dir("/sys/bus/iio/devices/")? {  
+                    let mut dev = device?;   
+                    let mut dev_path = (&dev).path();
+                    dev_path.push(&dev.file_name());
                     let mut adcs_temp = [None,None,None,None];
                     dev_path.set_file_name("name");
                     if fs::read_to_string(&dev_path).unwrap().contains("mcp3004") {

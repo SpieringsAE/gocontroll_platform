@@ -1,4 +1,4 @@
-mod gocontroll;
+pub mod gocontroll;
 
 #[cfg(test)]
 mod tests {
