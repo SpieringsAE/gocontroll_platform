@@ -158,34 +158,20 @@ impl MainBoard {
             self.led_control = LedControl::Rukr;
             self.adc = AdcConverter::Mcp3004([None,None,None,None]);
         }
+
         self.adc = self.get_adcs()?;
-        match self.module_layout {
-            ModuleLayout::ModulineDisplay => {
-                if modules.len() > 2 { panic!("Cannot initialize more than 2 modules on a Moduline Display");}
-                for i in 0..2 {
-                    self.resets[i] = Some(Self::create_reset(i)?);
-                }
-            },
-            ModuleLayout::ModulineMini => {
-                if modules.len() > 4 { panic!("Cannot initialize more than 4 modules on a Moduline Mini");}
-                for i in 0..4 {
-                    self.resets[i] = Some(Self::create_reset(i)?);
-                }
-            },
-            ModuleLayout::ModulineIV => {
-                if modules.len() > 8 { panic!("Cannot initialize more than 4 modules on a Moduline IV");}
-                for i in 0..8 {
-                    self.resets[i] = Some(Self::create_reset(i)?);
-                }
-            },
-            ModuleLayout::None => {
-                panic!("Should not be able to get here");
-            }
+
+        if modules.len() > self.module_layout as usize +1 { panic!("Cannot initialize more than {} modules on this controller", modules.len());}
+        for i in 0..self.module_layout as usize {
+            self.resets[i] = Some(Self::create_reset(i)?);
         }
+
         self.init_modules(modules)?;
+
         modules.iter_mut().try_for_each(|module| -> io::Result<()>{
             module.put_configuration(self)
         })?;
+
         Ok(())
     }
 
@@ -228,7 +214,7 @@ impl MainBoard {
         let mut fault_counter: u8 = 0;
         while module < modules.len() {
             if fault_counter > 5 {
-                panic!("module {module} is unable to escape the bootloader");
+                panic!("module in slot {} is unable to escape the bootloader", module + 1);
             }
             if modules[module].escape_module_bootloader()?.firmware == 20 {
                 module += 1;
