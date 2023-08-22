@@ -1,4 +1,4 @@
-use std::{io::{self, prelude::*},fs};
+use std::{io::{self, prelude::*},fs, path::PathBuf};
 use super::module::GOcontrollModule;
 use spidev::{Spidev, SpidevOptions,SpiModeFlags};
 use i2c_linux::I2c;
@@ -29,8 +29,8 @@ enum ModuleResetState {
 #[allow(unused)]
 pub enum AdcConverter {
     None,
-    Mcp3004([Option<fs::File>;4]),
-    Ads1015(Option<I2c<fs::File>>),
+    Mcp3004([Option<PathBuf>;4]),
+    Ads1015,
 }
 
 #[allow(unused)]
@@ -104,31 +104,31 @@ impl MainBoard {
         } else if hw.contains("Moduline IV V3.00") {
             self.module_layout = ModuleLayout::ModulineIV;
             self.led_control = LedControl::Gpio;
-            self.adc = AdcConverter::Ads1015(None);
+            self.adc = AdcConverter::Ads1015;
         } else if hw.contains("Moduline IV V3.01") {
             self.module_layout = ModuleLayout::ModulineIV;
             self.led_control = LedControl::Gpio;
-            self.adc = AdcConverter::Ads1015(None);
+            self.adc = AdcConverter::Ads1015;
         } else if hw.contains("Moduline IV V3.02") {
             self.module_layout = ModuleLayout::ModulineIV;
             self.led_control = LedControl::Rukr;
-            self.adc = AdcConverter::Ads1015(None);
+            self.adc = AdcConverter::Ads1015;
         } else if hw.contains("Moduline IV V3.03") {
             self.module_layout = ModuleLayout::ModulineIV;
             self.led_control = LedControl::Rukr;
-            self.adc = AdcConverter::Ads1015(None);
+            self.adc = AdcConverter::Ads1015;
         } else if hw.contains("Moduline IV V3.04") {
             self.module_layout = ModuleLayout::ModulineIV;
             self.led_control = LedControl::Rukr;
-            self.adc = AdcConverter::Ads1015(None);
+            self.adc = AdcConverter::Ads1015;
         } else if hw.contains("Moduline IV V3.05") {
             self.module_layout = ModuleLayout::ModulineIV;
             self.led_control = LedControl::Rukr;
-            self.adc = AdcConverter::Ads1015(None);
+            self.adc = AdcConverter::Ads1015;
         } else if hw.contains("Moduline Mini V1.03") {
             self.module_layout = ModuleLayout::ModulineMini;
             self.led_control = LedControl::Rukr;
-            self.adc = AdcConverter::Ads1015(None);
+            self.adc = AdcConverter::Ads1015;
         } else if hw.contains("Moduline Mini V1.05") {
             self.module_layout = ModuleLayout::ModulineMini;
             self.led_control = LedControl::Rukr;
@@ -158,8 +158,7 @@ impl MainBoard {
             self.led_control = LedControl::Rukr;
             self.adc = AdcConverter::Mcp3004([None,None,None,None]);
         }
-        dbg!(&self.module_layout);
-        self.get_adcs()?;
+        self.adc = self.get_adcs()?;
         match self.module_layout {
             ModuleLayout::ModulineDisplay => {
                 if modules.len() > 2 { panic!("Cannot initialize more than 2 modules on a Moduline Display");}
@@ -282,27 +281,24 @@ impl MainBoard {
             .open(RESETS[slot])
     }
 
-    fn get_adcs(&mut self) -> io::Result<()> {
-        match &mut self.adc {
-            AdcConverter::Ads1015(adc) => {
-                self.adc = AdcConverter::Ads1015(Some(I2c::from_path("/dev/i2c-2")?));
-                Ok(())
+    fn get_adcs(&self) -> io::Result<AdcConverter> {
+        match &self.adc {
+            AdcConverter::Ads1015 => {
+                Ok(AdcConverter::Ads1015)
             },
             AdcConverter::Mcp3004(adcs) => {
                 for device in fs::read_dir("/sys/bus/iio/devices/")? {  
                     let mut dev = device?;   
                     let mut dev_path = (&dev).path();
                     dev_path.push(&dev.file_name());
-                    let mut adcs_temp = [None,None,None,None];
+                    let mut adcs_temp: [Option<PathBuf>;4] = [None,None,None,None];
                     dev_path.set_file_name("name");
                     if fs::read_to_string(&dev_path).unwrap().contains("mcp3004") {
                         for index in 0..4 {
                             dev_path.set_file_name(format!("in_voltage{}_raw",index));
-                            adcs_temp[index] = Some(fs::File::open(&dev_path)?);
+                            adcs_temp[index] = Some(dev_path.clone());
                         }
-                        dbg!(&adcs_temp);
-                        self.adc = AdcConverter::Mcp3004(adcs_temp);
-                        return Ok(());
+                        return Ok(AdcConverter::Mcp3004(adcs_temp));
                     }
                 }
                 Err(io::Error::from(io::ErrorKind::NotFound))
@@ -313,35 +309,47 @@ impl MainBoard {
         }
     }
 
-    pub async fn read_adc_channel(&mut self, channel: AdcChannel) -> io::Result<u16> {
-        match &mut self.adc {
+    pub async fn read_adc_channel(&self, channel: AdcChannel) -> io::Result<u16> {
+        match &self.adc {
             AdcConverter::Mcp3004(adcs) => {
                 let mut buffer = String::with_capacity(5);
+                // let mut adc_file;
                 match channel {
                     AdcChannel::K30 => {
-                        adcs[0].as_mut().unwrap().read_to_string(&mut buffer)?;
-                        return Ok(Self::convert_mcp(buffer.trim_end()))
+                        // adc_file = adcs[0].as_mut().unwrap();
+                        // adc_file.rewind()?;
+                        // return Ok(Self::convert_mcp(buffer.trim_end()))
+                        return Ok(Self::convert_mcp(fs::read_to_string(adcs[3].as_ref().unwrap())?.trim_end()));
                     },
                     AdcChannel::K15A => {
-                        adcs[1].as_mut().unwrap().read_to_string(&mut buffer)?;
-                        return Ok(Self::convert_mcp(buffer.trim_end()))
+                        // adc_file = adcs[3].as_mut().unwrap();
+                        // adc_file.rewind()?;
+                        // adc_file.read_to_string(&mut buffer)?;
+                        // return Ok(Self::convert_mcp(buffer.trim_end()))
+                        return Ok(Self::convert_mcp(fs::read_to_string(adcs[0].as_ref().unwrap())?.trim_end()));
                     },
                     AdcChannel::K15B => {
-                        adcs[2].as_mut().unwrap().read_to_string(&mut buffer)?;
-                        return Ok(Self::convert_mcp(buffer.trim_end()))
+                        // adc_file = adcs[2].as_mut().unwrap();
+                        // adc_file.rewind()?;
+                        // adc_file.read_to_string(&mut buffer)?;
+                        // return Ok(Self::convert_mcp(buffer.trim_end()))
+                        return Ok(Self::convert_mcp(fs::read_to_string(adcs[1].as_ref().unwrap())?.trim_end()));
                     },
                     AdcChannel::K15C => {
-                        adcs[3].as_mut().unwrap().read_to_string(&mut buffer)?;
-                        return Ok(Self::convert_mcp(buffer.trim_end()))
+                        // adc_file = adcs[1].as_mut().unwrap();
+                        // adc_file.rewind()?;
+                        // adc_file.read_to_string(&mut buffer)?;
+                        // return Ok(Self::convert_mcp(buffer.trim_end()))
+                        return Ok(Self::convert_mcp(fs::read_to_string(adcs[2].as_ref().unwrap())?.trim_end()));
                     }
                 }
             },
-            AdcConverter::Ads1015(adc) => {
+            AdcConverter::Ads1015 => {
                 let mut rx: [u8;2] = [0;2];
                 let mut tx_config: [u8;2] = [0xf3, 0xe3]; //address of k30 is 0xf3
                 let convert: u8 = 0;
                 let config: u8 = 1;
-                let mut adc_temp = adc.as_mut().unwrap();
+                let mut adc_temp = I2c::from_path("/dev/i2c-2")?;
                 match channel {
                     AdcChannel::K30 => {
                         adc_temp.smbus_write_block_data(config,&tx_config)?;
@@ -373,7 +381,6 @@ impl MainBoard {
     }
 
     fn convert_mcp(string_val: &str) -> u16 {
-        dbg!(&string_val);
         if string_val.eq("") {
             return 0;
         } else {
