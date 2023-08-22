@@ -66,7 +66,7 @@ const SPIDEVS: [&str;8] = [
 
 #[allow(unused)]
 const RESETS: [&str;8] = [
-    "/sys/class/leds/ResetCM-1/brightness",
+    "/sys/class/leds/ResetM-1/brightness",
     "/sys/class/leds/ResetM-2/brightness",
     "/sys/class/leds/ResetM-3/brightness",
     "/sys/class/leds/ResetM-4/brightness",
@@ -88,68 +88,68 @@ impl MainBoard {
     }
 
     pub async fn initialize_main_board(&mut self, modules: &mut [&mut dyn GOcontrollModule]) -> io::Result<()>{
-        let hw = fs::read_to_string("/sys/firmware/devicetree/base/hardware")?;
-        if hw.eq("Moduline IV V3.06") {
+        let hw = fs::read_to_string("/sys/firmware/devicetree/base/hardware").expect("Cannot find hardware spec, are you running this on a Moduline product?");
+        if hw.contains("Moduline IV V3.06") {
             self.module_layout = ModuleLayout::ModulineIV;
             self.led_control = LedControl::Rukr;
             self.adc = AdcConverter::Mcp3004([None,None,None,None]);
-        } else if hw.eq("Moduline Mini V1.11") {
+        } else if hw.contains("Moduline Mini V1.11") {
             self.module_layout = ModuleLayout::ModulineMini;
             self.led_control = LedControl::Rukr;
             self.adc = AdcConverter::Mcp3004([None,None,None,None]);
-        } else if hw.eq("Moduline Screen V1.04") {
+        } else if hw.contains("Moduline Screen V1.04") {
             self.module_layout = ModuleLayout::ModulineDisplay;
             self.led_control = LedControl::Rukr;
             self.adc = AdcConverter::Mcp3004([None,None,None,None]);
-        } else if hw.eq("Moduline IV V3.00") {
+        } else if hw.contains("Moduline IV V3.00") {
             self.module_layout = ModuleLayout::ModulineIV;
             self.led_control = LedControl::Gpio;
             self.adc = AdcConverter::Ads1015(None);
-        } else if hw.eq("Moduline IV V3.01") {
+        } else if hw.contains("Moduline IV V3.01") {
             self.module_layout = ModuleLayout::ModulineIV;
             self.led_control = LedControl::Gpio;
             self.adc = AdcConverter::Ads1015(None);
-        } else if hw.eq("Moduline IV V3.02") {
+        } else if hw.contains("Moduline IV V3.02") {
             self.module_layout = ModuleLayout::ModulineIV;
             self.led_control = LedControl::Rukr;
             self.adc = AdcConverter::Ads1015(None);
-        } else if hw.eq("Moduline IV V3.03") {
+        } else if hw.contains("Moduline IV V3.03") {
             self.module_layout = ModuleLayout::ModulineIV;
             self.led_control = LedControl::Rukr;
             self.adc = AdcConverter::Ads1015(None);
-        } else if hw.eq("Moduline IV V3.04") {
+        } else if hw.contains("Moduline IV V3.04") {
             self.module_layout = ModuleLayout::ModulineIV;
             self.led_control = LedControl::Rukr;
             self.adc = AdcConverter::Ads1015(None);
-        } else if hw.eq("Moduline IV V3.05") {
+        } else if hw.contains("Moduline IV V3.05") {
             self.module_layout = ModuleLayout::ModulineIV;
             self.led_control = LedControl::Rukr;
             self.adc = AdcConverter::Ads1015(None);
-        } else if hw.eq("Moduline Mini V1.03") {
+        } else if hw.contains("Moduline Mini V1.03") {
             self.module_layout = ModuleLayout::ModulineMini;
             self.led_control = LedControl::Rukr;
             self.adc = AdcConverter::Ads1015(None);
-        } else if hw.eq("Moduline Mini V1.05") {
+        } else if hw.contains("Moduline Mini V1.05") {
             self.module_layout = ModuleLayout::ModulineMini;
             self.led_control = LedControl::Rukr;
             self.adc = AdcConverter::Mcp3004([None,None,None,None]);
-        } else if hw.eq("Moduline Mini V1.06") {
+        } else if hw.contains("Moduline Mini V1.06") {
             self.module_layout = ModuleLayout::ModulineMini;
             self.led_control = LedControl::Rukr;
             self.adc = AdcConverter::Mcp3004([None,None,None,None]);
-        } else if hw.eq("Moduline Mini V1.07") {
+        } else if hw.contains("Moduline Mini V1.07") {
             self.module_layout = ModuleLayout::ModulineMini;
             self.led_control = LedControl::Rukr;
             self.adc = AdcConverter::Mcp3004([None,None,None,None]);
-        } else if hw.eq("Moduline Mini V1.10") {
+        } else if hw.contains("Moduline Mini V1.10") {
             self.module_layout = ModuleLayout::ModulineMini;
             self.led_control = LedControl::Rukr;
             self.adc = AdcConverter::Mcp3004([None,None,None,None]);
-        } else if hw.eq("Moduline Screen V1.02") {
+        } else if hw.contains("Moduline Screen V1.02") {
             self.module_layout = ModuleLayout::ModulineDisplay;
             self.led_control = LedControl::Rukr;
             self.adc = AdcConverter::Mcp3004([None,None,None,None]);
-        } else if hw.eq("Moduline Screen V1.03") {
+        } else if hw.contains("Moduline Screen V1.03") {
             self.module_layout = ModuleLayout::ModulineDisplay;
             self.led_control = LedControl::Rukr;
             self.adc = AdcConverter::Mcp3004([None,None,None,None]);
@@ -158,23 +158,24 @@ impl MainBoard {
             self.led_control = LedControl::Rukr;
             self.adc = AdcConverter::Mcp3004([None,None,None,None]);
         }
+        dbg!(&self.module_layout);
         self.get_adcs()?;
         match self.module_layout {
             ModuleLayout::ModulineDisplay => {
                 if modules.len() > 2 { panic!("Cannot initialize more than 2 modules on a Moduline Display");}
-                for i in 0..1 {
+                for i in 0..2 {
                     self.resets[i] = Some(Self::create_reset(i)?);
                 }
             },
             ModuleLayout::ModulineMini => {
                 if modules.len() > 4 { panic!("Cannot initialize more than 4 modules on a Moduline Mini");}
-                for i in 0..3 {
+                for i in 0..4 {
                     self.resets[i] = Some(Self::create_reset(i)?);
                 }
             },
             ModuleLayout::ModulineIV => {
                 if modules.len() > 8 { panic!("Cannot initialize more than 4 modules on a Moduline IV");}
-                for i in 0..7 {
+                for i in 0..8 {
                     self.resets[i] = Some(Self::create_reset(i)?);
                 }
             },
@@ -275,7 +276,10 @@ impl MainBoard {
     }
 
     fn create_reset(slot: usize) -> io::Result<fs::File> {
-        fs::File::create(RESETS[slot])
+        fs::File::options()
+            .read(false)
+            .write(true)
+            .open(RESETS[slot])
     }
 
     fn get_adcs(&mut self) -> io::Result<()> {
@@ -292,10 +296,11 @@ impl MainBoard {
                     let mut adcs_temp = [None,None,None,None];
                     dev_path.set_file_name("name");
                     if fs::read_to_string(&dev_path).unwrap().contains("mcp3004") {
-                        for index in 0..3 {
+                        for index in 0..4 {
                             dev_path.set_file_name(format!("in_voltage{}_raw",index));
-                            adcs_temp[index] = Some(fs::File::create(&dev_path)?);
+                            adcs_temp[index] = Some(fs::File::open(&dev_path)?);
                         }
+                        dbg!(&adcs_temp);
                         self.adc = AdcConverter::Mcp3004(adcs_temp);
                         return Ok(());
                     }
@@ -315,19 +320,19 @@ impl MainBoard {
                 match channel {
                     AdcChannel::K30 => {
                         adcs[0].as_mut().unwrap().read_to_string(&mut buffer)?;
-                        return Ok(Self::convert_mcp(buffer))
+                        return Ok(Self::convert_mcp(buffer.trim_end()))
                     },
                     AdcChannel::K15A => {
                         adcs[1].as_mut().unwrap().read_to_string(&mut buffer)?;
-                        return Ok(Self::convert_mcp(buffer))
+                        return Ok(Self::convert_mcp(buffer.trim_end()))
                     },
                     AdcChannel::K15B => {
                         adcs[2].as_mut().unwrap().read_to_string(&mut buffer)?;
-                        return Ok(Self::convert_mcp(buffer))
+                        return Ok(Self::convert_mcp(buffer.trim_end()))
                     },
                     AdcChannel::K15C => {
                         adcs[3].as_mut().unwrap().read_to_string(&mut buffer)?;
-                        return Ok(Self::convert_mcp(buffer))
+                        return Ok(Self::convert_mcp(buffer.trim_end()))
                     }
                 }
             },
@@ -367,8 +372,13 @@ impl MainBoard {
         }
     }
 
-    fn convert_mcp(string_val: String) -> u16 {
-        (string_val.parse::<f32>().unwrap()*25.54f32) as u16
+    fn convert_mcp(string_val: &str) -> u16 {
+        dbg!(&string_val);
+        if string_val.eq("") {
+            return 0;
+        } else {
+            return (string_val.parse::<f32>().unwrap()*25.54f32) as u16
+        }
     }
     fn convert_ads(read_buff:[u8;2]) -> u16 {
         if (read_buff[0] & 0x80) >> 7 == 1 {
