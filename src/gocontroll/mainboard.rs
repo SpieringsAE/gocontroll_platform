@@ -336,30 +336,15 @@ impl MainBoard {
                 // let mut adc_file;
                 match channel {
                     AdcChannel::K30 => {
-                        // adc_file = adcs[0].as_mut().unwrap();
-                        // adc_file.rewind()?;
-                        // return Ok(Self::convert_mcp(buffer.trim_end()))
                         return Ok(Self::convert_mcp(fs::read_to_string(adcs[3].as_ref().unwrap())?.trim_end()));
                     },
                     AdcChannel::K15A => {
-                        // adc_file = adcs[3].as_mut().unwrap();
-                        // adc_file.rewind()?;
-                        // adc_file.read_to_string(&mut buffer)?;
-                        // return Ok(Self::convert_mcp(buffer.trim_end()))
                         return Ok(Self::convert_mcp(fs::read_to_string(adcs[0].as_ref().unwrap())?.trim_end()));
                     },
                     AdcChannel::K15B => {
-                        // adc_file = adcs[2].as_mut().unwrap();
-                        // adc_file.rewind()?;
-                        // adc_file.read_to_string(&mut buffer)?;
-                        // return Ok(Self::convert_mcp(buffer.trim_end()))
                         return Ok(Self::convert_mcp(fs::read_to_string(adcs[1].as_ref().unwrap())?.trim_end()));
                     },
                     AdcChannel::K15C => {
-                        // adc_file = adcs[1].as_mut().unwrap();
-                        // adc_file.rewind()?;
-                        // adc_file.read_to_string(&mut buffer)?;
-                        // return Ok(Self::convert_mcp(buffer.trim_end()))
                         return Ok(Self::convert_mcp(fs::read_to_string(adcs[2].as_ref().unwrap())?.trim_end()));
                     }
                 }
