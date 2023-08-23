@@ -49,10 +49,10 @@ async fn async_main() -> io::Result<()> {
 }
 ```
 
-## Yet to test: \
+## Yet to test
 All modules
 
-## Yet to implement: \
+## Yet to implement
 Enclosure LEDs \
 XCP Stack \
-CAN Busses \
+CAN Busses
