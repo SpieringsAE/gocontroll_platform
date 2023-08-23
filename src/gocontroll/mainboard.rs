@@ -21,6 +21,16 @@ pub enum AdcChannel {
 
 #[allow(unused)]
 #[repr(u8)]
+#[derive(Copy,Clone)]
+pub enum EnclosureLed {
+    Led1,
+    Led2,
+    Led3,
+    Led4,
+}
+
+#[allow(unused)]
+#[repr(u8)]
 enum ModuleResetState {
     High = 1,
     Low = 0
@@ -75,6 +85,28 @@ const RESETS: [&str;8] = [
     "/sys/class/leds/ResetM-7/brightness",
     "/sys/class/leds/ResetM-8/brightness",
 ];
+
+#[allow(unused)]
+const GPIO_LEDS: [&str;12] = [
+    "/sys/class/leds/Status1-r/brightness",
+    "/sys/class/leds/Status1-g/brightness",
+    "/sys/class/leds/Status1-b/brightness",
+    "/sys/class/leds/Status2-r/brightness",
+    "/sys/class/leds/Status2-g/brightness",
+    "/sys/class/leds/Status2-b/brightness",
+    "/sys/class/leds/Status3-r/brightness",
+    "/sys/class/leds/Status3-g/brightness",
+    "/sys/class/leds/Status3-b/brightness",
+    "/sys/class/leds/Status4-r/brightness",
+    "/sys/class/leds/Status4-g/brightness",
+    "/sys/class/leds/Status4-b/brightness",
+];
+
+#[allow(unused)]
+const RUKR_LEDS: &str = "/dev/i2c-2";
+
+#[allow(unused)]
+const ADS_ADC: &str = "/dev/i2c-2";
 
 #[allow(unused)]
 impl MainBoard {
@@ -160,6 +192,8 @@ impl MainBoard {
         }
 
         self.adc = self.get_adcs()?;
+
+        self.initialize_leds()?;
 
         if modules.len() > self.module_layout as usize +1 { panic!("Cannot initialize more than {} modules on this controller", modules.len());}
         for i in 0..self.module_layout as usize {
@@ -335,7 +369,8 @@ impl MainBoard {
                 let mut tx_config: [u8;2] = [0xf3, 0xe3]; //address of k30 is 0xf3
                 let convert: u8 = 0;
                 let config: u8 = 1;
-                let mut adc_temp = I2c::from_path("/dev/i2c-2")?;
+                let mut adc_temp = I2c::from_path(ADS_ADC)?;
+                adc_temp.smbus_set_slave_address(0x48, false)?;
                 match channel {
                     AdcChannel::K30 => {
                         adc_temp.smbus_write_block_data(config,&tx_config)?;
@@ -379,5 +414,42 @@ impl MainBoard {
         } else {
             return ((((read_buff[0] as u16) << 4) | ((read_buff[1] as u16 & 0xf0) >> 4)) as f32 * 15.608f32) as u16
         }
+    }
+
+    fn initialize_leds(&self) -> io::Result<()> {
+        match &self.led_control {
+            LedControl::Rukr => {
+                let mut led_temp = I2c::from_path(RUKR_LEDS)?;
+                led_temp.smbus_set_slave_address(0x14, false)?;
+                led_temp.smbus_write_byte_data(23, 255)?;
+                led_temp.smbus_write_byte_data(0, 64)?;
+                Ok(())
+            },
+            _ => {
+                Ok(())
+            }
+        }
+    }
+
+    pub async fn set_led(&self, led: EnclosureLed, red: u8, green: u8, blue: u8) -> io::Result<()> {
+        match &self.led_control {
+            LedControl::Rukr => {
+                let mut led_temp = I2c::from_path(RUKR_LEDS)?;
+                led_temp.smbus_set_slave_address(0x14, false)?;
+
+                led_temp.smbus_write_byte_data(0x0B+(&(led as u8))*3, red)?;
+                led_temp.smbus_write_byte_data(0x0B+(&(led as u8))*3+1, green)?;
+                led_temp.smbus_write_byte_data(0x0B+(&(led as u8))*3+2, blue)?;
+            },
+            LedControl::Gpio => {
+                fs::write(GPIO_LEDS[&(led as usize)*3], if red>0 {"1"} else {"0"})?;
+                fs::write(GPIO_LEDS[&(led as usize)*3+1], if green>0 {"1"} else {"0"})?;
+                fs::write(GPIO_LEDS[&(led as usize)*3+2], if blue>0 {"1"} else {"0"})?;
+            },
+            LedControl::None => {
+                panic!("Cannot set led, either MainBoard::initialize_main_board was not executed yet, or this controller has no available leds.")
+            }
+        }
+        Ok(())
     }
 }

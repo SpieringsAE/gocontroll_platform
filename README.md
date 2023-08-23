@@ -50,9 +50,10 @@ async fn async_main() -> io::Result<()> {
 ```
 
 ## Yet to test
-All modules
+All modules \
+GPIO based enclosure LEDs \
+ads1015 ADC
 
 ## Yet to implement
-Enclosure LEDs \
 XCP Stack \
 CAN Busses
