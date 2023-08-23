@@ -110,6 +110,14 @@ const ADS_ADC: &str = "/dev/i2c-2";
 
 #[allow(unused)]
 impl MainBoard {
+    /// Create a new MainBoard object
+    /// 
+    /// # Examples
+    /// 
+    /// ```
+    /// use gocontroll_platform::gocontroll::mainboard::MainBoard;
+    /// let mut mainboard = MainBoard::new();
+    /// ```
     pub const fn new() -> MainBoard {
         MainBoard { led_control: LedControl::None,
             adc: AdcConverter::None,
@@ -119,7 +127,31 @@ impl MainBoard {
         }
     }
 
-    pub async fn initialize_main_board(&mut self, modules: &mut [&mut dyn GOcontrollModule]) -> io::Result<()>{
+    /// Initializes the MainBoard object.
+    /// Gets the hardware configuration, puts the configuration in the provided modules, initializes the adcs and leds
+    /// 
+    /// # Arguments
+    /// 
+    /// * `modules` - A mutable array of dyn GOcontrollModule structs i.e. modules that need to be initialized aswell.
+    /// 
+    /// # Examples
+    /// 
+    /// ```
+    /// use gocontroll_platform::gocontroll::{mainboard::MainBoard,inputmodule6ch::*,module::ModuleSlot};
+    /// let mut mainboard = MainBoard::new();
+    /// let mut input_module: InputModule6Ch = InputModule6Ch::new( ModuleSlot::Moduleslot1,
+    /// [
+    ///     Some(InputModule6ChConfig::new(InputModule6ChFunction::AnalogmV, InputModule6ChPullDown::PullDown10k, InputModule6ChPullUp::PulUpnNone, InputModule6ChVoltageRange::Voltage0_5V,0u8,10u16)),
+    ///     Some(InputModule6ChConfig::new(InputModule6ChFunction::AnalogmV, InputModule6ChPullDown::PullDown10k, InputModule6ChPullUp::PulUpnNone, InputModule6ChVoltageRange::Voltage0_5V,0u8,10u16)),
+    ///     None,
+    ///     Some(InputModule6ChConfig::new(InputModule6ChFunction::AnalogmV, InputModule6ChPullDown::PullDown10k, InputModule6ChPullUp::PulUpnNone, InputModule6ChVoltageRange::Voltage0_5V,0u8,10u16)),
+    ///     None,
+    ///     Some(InputModule6ChConfig::new(InputModule6ChFunction::AnalogmV, InputModule6ChPullDown::PullDown10k, InputModule6ChPullUp::PulUpnNone, InputModule6ChVoltageRange::Voltage0_5V,0u8,10u16)),
+    /// ],
+    /// Inputmodule6chSupplyConfig::new(InputModuleSupply::On, InputModuleSupply::On, InputModuleSupply::On));
+    /// mainboard.init(&mut [&mut input_module]);
+    /// ```
+    pub async fn init(&mut self, modules: &mut [&mut dyn GOcontrollModule]) -> io::Result<()>{
         let hw = fs::read_to_string("/sys/firmware/devicetree/base/hardware").expect("Cannot find hardware spec, are you running this on a Moduline product?");
         if hw.contains("Moduline IV V3.06") {
             self.module_layout = ModuleLayout::ModulineIV;
@@ -329,6 +361,21 @@ impl MainBoard {
         }
     }
 
+    /// Reads from one of the 4 ADC channels
+    /// 
+    /// # Arguments
+    /// 
+    /// * `channel` - The ADC channel to read out
+    /// 
+    /// # Examples
+    /// 
+    /// ```
+    /// use gocontroll_platform::gocontroll::mainboard::{MainBoard,AdcChannel};
+    /// use futures::future::join;
+    /// let mut mainboard = MainBoard::new();
+    /// mainboard.init(&mut []);
+    /// join(mainboard.read_adc_channel(AdcChannel::K30)).unwrap();
+    /// ```
     pub async fn read_adc_channel(&self, channel: AdcChannel) -> io::Result<u16> {
         match &self.adc {
             AdcConverter::Mcp3004(adcs) => {

@@ -49,7 +49,7 @@ mod tests {
         ],
         InputModuleSupply::On);
         let modules: &mut [&mut dyn GOcontrollModule] = &mut [&mut input_module, &mut output_module, &mut input_module_10ch];
-        let main_init_fut = mainboard.initialize_main_board(modules);
+        let main_init_fut = mainboard.init(modules);
 
         //other initialisation
 
