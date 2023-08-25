@@ -1,5 +1,7 @@
 use core::fmt::{Debug,Display};
 use std::io;
+use std::sync::{Arc,Mutex};
+use spidev::Spidev;
 
 use super::mainboard::MainBoard;
 
@@ -46,7 +48,7 @@ pub enum MessageType {
     Feedback = 4u8,
 }
 
-pub struct EscapeBootloaderRespnse {
+pub struct EscapeBootloaderResponse {
     pub bootloader: u8,
     pub firmware:u8
 }
@@ -64,11 +66,5 @@ pub trait GOcontrollModule: Send + Sync {
 
     fn get_slot(&self) -> ModuleSlot;
 
-    fn send_module_spi(&mut self, command: u8, direction: CommunicationDirection, module_id: u8, message_type: MessageType, message_index: u8, length:usize) -> io::Result<()>;
-
-    fn send_receive_module_spi(&mut self, command: u8, direction: CommunicationDirection, module_id: u8, message_type: MessageType, message_index: u8, length:usize) -> io::Result<()>;
-
-    fn escape_module_bootloader(&mut self) -> io::Result<EscapeBootloaderRespnse>;
-
-    fn spi_dummy_send(&mut self) -> io::Result<()>;
+    fn get_spidev(&self) -> Arc<Mutex<Spidev>>;
 }

@@ -1,5 +1,5 @@
-use std::{io::{self, prelude::*},fs, path::PathBuf};
-use super::module::GOcontrollModule;
+use std::{io::{self, prelude::*},fs, path::PathBuf,sync::{Arc,Mutex}};
+use super::module::{GOcontrollModule,EscapeBootloaderResponse,BOOTMESSAGELENGTH,BOOTMESSAGELENGTHCHECK,CommunicationDirection,MessageType};
 use spidev::{Spidev, SpidevOptions,SpiModeFlags};
 use i2c_linux::I2c;
 
@@ -258,19 +258,19 @@ impl MainBoard {
     fn init_modules(&mut self, modules: &mut [&mut dyn GOcontrollModule]) -> io::Result<()> {
         
         let mut module_state: [u8;8] = [0;8];
-        for module in &mut *modules {
+        for module in & *modules {
             self.reset_module_state(&(module.get_slot() as usize), ModuleResetState::High)?;
         }
-        for module in &mut *modules {
-            module.spi_dummy_send()?;
+        for module in & *modules {
+            Self::spi_dummy_send(*module)?;
         }
         std::thread::sleep(std::time::Duration::from_millis(5));
-        for module in &mut *modules {
+        for module in & *modules {
             self.reset_module_state(&(module.get_slot() as usize), ModuleResetState::Low)?;
         }
         std::thread::sleep(std::time::Duration::from_millis(10));
-        for module in &mut *modules{
-        let escape_res = module.escape_module_bootloader()?;
+        for module in & *modules{
+        let escape_res = Self::escape_module_bootloader(*module)?;
             if escape_res.bootloader == 9 {
                 module_state[module.get_slot() as usize] = escape_res.firmware;
             }
@@ -282,7 +282,7 @@ impl MainBoard {
             if fault_counter > 5 {
                 panic!("module in slot {} is unable to escape the bootloader", module + 1);
             }
-            if modules[module].escape_module_bootloader()?.firmware == 20 {
+            if Self::escape_module_bootloader(modules[module])?.firmware == 20 {
                 module += 1;
                 fault_counter = 0;
             } else if module_state[module] == 20 {
@@ -290,7 +290,7 @@ impl MainBoard {
                 std::thread::sleep(std::time::Duration::from_millis(5));
                 self.reset_module_state(&module, ModuleResetState::Low)?;
                 std::thread::sleep(std::time::Duration::from_millis(5));
-                modules[module].escape_module_bootloader()?;
+                Self::escape_module_bootloader(modules[module])?;
                 fault_counter += 1;
             }
         }
@@ -483,5 +483,56 @@ impl MainBoard {
             }
         }
         Ok(())
+    }
+
+    pub fn send_module_spi(spidev: Arc<Mutex<Spidev>>, command: u8, direction: CommunicationDirection, module_id: u8, message_type: MessageType, message_index: u8, tx:&mut [u8], length:usize) -> io::Result<()> {
+        tx[0] = command;
+        tx[1] = {length-1} as u8;
+        tx[2] = direction as u8;
+        tx[3] = module_id;
+        tx[4] = message_type as u8;
+        tx[5] = message_index;
+        tx[length-1] = MainBoard::module_checksum(&tx, length)?;
+        let mut transfer = spidev::SpidevTransfer::write(&tx);
+        spidev.lock().as_mut().unwrap().transfer(&mut transfer)?;
+        Ok(())
+    }
+
+    pub fn send_receive_module_spi(spidev: Arc<Mutex<Spidev>>, command: u8, direction: CommunicationDirection, module_id: u8, message_type: MessageType, message_index: u8, tx:&mut [u8], rx:&mut [u8], length:usize) -> io::Result<()> {
+        tx[0] = command;
+        tx[1] = {length-1} as u8;
+        tx[2] = direction as u8;
+        tx[3] = module_id;
+        tx[4] = message_type as u8;
+        tx[5] = message_index;
+        tx[length-1] = MainBoard::module_checksum(&tx, length)?;
+        rx[0] = 0;
+        rx[length-1] = 0;
+
+        let mut transfer = spidev::SpidevTransfer::read_write(&tx,rx);
+        spidev.lock().as_mut().unwrap().transfer(&mut transfer)?;
+        MainBoard::module_checksum(&rx, length)?;
+        Ok(())        
+    }
+
+    pub fn spi_dummy_send(module: &dyn GOcontrollModule) -> io::Result<()> {
+        const SPIDUMMY: [u8;6] = [1,2,3,4,5,6];
+        let mut transfer = spidev::SpidevTransfer::write(&SPIDUMMY);
+        module.get_spidev().lock().as_mut().unwrap().transfer(&mut transfer)?;
+        Ok(())
+    }
+
+    pub fn escape_module_bootloader(module: &dyn GOcontrollModule) ->io::Result<EscapeBootloaderResponse> {
+        let mut tx: [u8;BOOTMESSAGELENGTHCHECK] = [0;BOOTMESSAGELENGTHCHECK];
+        let mut rx: [u8;BOOTMESSAGELENGTHCHECK] = [0;BOOTMESSAGELENGTHCHECK];
+        tx[0] = 19;
+        tx[1] = {BOOTMESSAGELENGTH -1} as u8;
+        tx[2] = 19;
+        tx[BOOTMESSAGELENGTH-1] = MainBoard::module_checksum(&tx, BOOTMESSAGELENGTH)?;
+        let mut transfer = spidev::SpidevTransfer::read_write(&tx, &mut rx);
+        
+        module.get_spidev().lock().as_mut().unwrap().transfer(&mut transfer)?;
+        MainBoard::module_checksum(&rx, BOOTMESSAGELENGTH)?;
+        Ok(EscapeBootloaderResponse{ bootloader: rx[0], firmware: rx[6]})
     }
 }
