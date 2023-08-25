@@ -255,21 +255,21 @@ impl MainBoard {
         Ok(())
     }
 
-    fn init_modules(&mut self, modules: &mut [&mut dyn GOcontrollModule]) -> io::Result<()> {
+    fn init_modules(&mut self, modules: & [&mut dyn GOcontrollModule]) -> io::Result<()> {
         
         let mut module_state: [u8;8] = [0;8];
-        for module in & *modules {
+        for module in modules {
             self.reset_module_state(&(module.get_slot() as usize), ModuleResetState::High)?;
         }
-        for module in & *modules {
+        for module in modules {
             Self::spi_dummy_send(*module)?;
         }
         std::thread::sleep(std::time::Duration::from_millis(5));
-        for module in & *modules {
+        for module in modules {
             self.reset_module_state(&(module.get_slot() as usize), ModuleResetState::Low)?;
         }
         std::thread::sleep(std::time::Duration::from_millis(10));
-        for module in & *modules{
+        for module in modules{
         let escape_res = Self::escape_module_bootloader(*module)?;
             if escape_res.bootloader == 9 {
                 module_state[module.get_slot() as usize] = escape_res.firmware;
@@ -299,19 +299,19 @@ impl MainBoard {
 
     fn reset_module_state(&mut self, slot: &usize, state: ModuleResetState) -> io::Result<()> {
         const STATE: [&str;2] = ["0", "1"];
-        self.resets[*slot].as_mut().expect("Incorrectly initialized module reset").write(STATE[state as usize].as_bytes())?;
+        self.resets[*slot].as_mut().expect("Incorrectly initialized module reset").write_all(STATE[state as usize].as_bytes())?;
         Ok(())
     }
 
     pub fn module_checksum(data:&[u8], length:usize) -> io::Result<u8> {
         let mut check_sum:u8 = 0;
-        for index in 0..length-1 {
-            check_sum = check_sum.wrapping_add(data[index]);
+        for item in data.iter().take(length-1) {
+            check_sum = check_sum.wrapping_add(*item);
         }
         if check_sum == data[length-1] {
-            return Ok(check_sum)
+            Ok(check_sum)
         } else {
-            return Err(io::Error::from(io::ErrorKind::InvalidData));
+            Err(io::Error::from(io::ErrorKind::InvalidData))
         }
     }
 
@@ -341,14 +341,14 @@ impl MainBoard {
             AdcConverter::Mcp3004(adcs) => {
                 for device in fs::read_dir("/sys/bus/iio/devices/")? {  
                     let mut dev = device?;   
-                    let mut dev_path = (&dev).path();
+                    let mut dev_path = dev.path();
                     dev_path.push(&dev.file_name());
                     let mut adcs_temp: [Option<PathBuf>;4] = [None,None,None,None];
                     dev_path.set_file_name("name");
                     if fs::read_to_string(&dev_path).unwrap().contains("mcp3004") {
-                        for index in 0..4 {
+                        for (index, adc) in adcs_temp.iter_mut().enumerate() {
                             dev_path.set_file_name(format!("in_voltage{}_raw",index));
-                            adcs_temp[index] = Some(dev_path.clone());
+                            *adc = Some(dev_path.clone());
                         }
                         return Ok(AdcConverter::Mcp3004(adcs_temp));
                     }
@@ -407,25 +407,25 @@ impl MainBoard {
                     AdcChannel::K30 => {
                         adc_temp.smbus_write_block_data(config,&tx_config)?;
                         adc_temp.smbus_read_block_data(convert, &mut rx)?;
-                        return Ok(Self::convert_ads(rx))
+                        Ok(Self::convert_ads(rx))
                     },
                     AdcChannel::K15A => {
                         tx_config[0] = 0xc3; //address of k15a
                         adc_temp.smbus_write_block_data(config,&tx_config)?;
                         adc_temp.smbus_read_block_data(convert, &mut rx)?;
-                        return Ok(Self::convert_ads(rx))
+                        Ok(Self::convert_ads(rx))
                     },
                     AdcChannel::K15B => {
                         tx_config[0] = 0xd3; //address of k15b
                         adc_temp.smbus_write_block_data(config,&tx_config)?;
                         adc_temp.smbus_read_block_data(convert, &mut rx)?;
-                        return Ok(Self::convert_ads(rx))
+                        Ok(Self::convert_ads(rx))
                     },
                     AdcChannel::K15C => {
                         tx_config[0] = 0xe3; //address of k15c
                         adc_temp.smbus_write_block_data(config,&tx_config)?;
                         adc_temp.smbus_read_block_data(convert, &mut rx)?;
-                        return Ok(Self::convert_ads(rx))
+                        Ok(Self::convert_ads(rx))
                     }
                 }
             },
@@ -435,16 +435,16 @@ impl MainBoard {
 
     fn convert_mcp(string_val: &str) -> u16 {
         if string_val.eq("") {
-            return 0;
+            0
         } else {
-            return (string_val.parse::<f32>().unwrap()*25.54f32) as u16
+            (string_val.parse::<f32>().unwrap()*25.54f32) as u16
         }
     }
     fn convert_ads(read_buff:[u8;2]) -> u16 {
         if (read_buff[0] & 0x80) >> 7 == 1 {
-            return 0
+            0
         } else {
-            return ((((read_buff[0] as u16) << 4) | ((read_buff[1] as u16 & 0xf0) >> 4)) as f32 * 15.608f32) as u16
+            ((((read_buff[0] as u16) << 4) | ((read_buff[1] as u16 & 0xf0) >> 4)) as f32 * 15.608f32) as u16
         }
     }
 

@@ -171,8 +171,8 @@ impl OutputModule6Ch {
             potential_err = Some(err);
             false
         });
-        if potential_err.is_some() {
-            return Err(potential_err.unwrap());
+        if let Some(error) = potential_err {
+            return Err(error);
         }
         feedback.temperature = i16::from_le_bytes(rx[6..7].try_into().unwrap());
         feedback.groundshift = u16::from_le_bytes(rx[8..9].try_into().unwrap());
