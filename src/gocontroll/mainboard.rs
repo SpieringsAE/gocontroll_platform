@@ -12,11 +12,12 @@ pub enum LedControl {
 }
 
 #[allow(unused)]
+#[repr(u8)]
 pub enum AdcChannel {
-    K30,
-    K15A,
-    K15B,
-    K15C,
+    K30=0xf3,
+    K15A=0xc3,
+    K15B=0xd3,
+    K15C=0xe3,
 }
 
 #[allow(unused)]
@@ -37,6 +38,7 @@ enum ModuleResetState {
 }
 
 #[allow(unused)]
+#[derive(Debug)]
 pub enum AdcConverter {
     None,
     Mcp3004([Option<PathBuf>;4]),
@@ -398,36 +400,15 @@ impl MainBoard {
             },
             AdcConverter::Ads1015 => {
                 let mut rx: [u8;2] = [0;2];
-                let mut tx_config: [u8;2] = [0xf3, 0xe3]; //address of k30 is 0xf3
-                let convert: u8 = 0;
-                let config: u8 = 1;
+                let mut tx_config: [u8;3] = [0x01, channel as u8, 0xe3]; //address of k30 is 0xf3
+                let convert: u8 = 0x00;
+                let config: u8 = 0x01;
                 let mut adc_temp = I2c::from_path(ADS_ADC)?;
                 adc_temp.smbus_set_slave_address(0x48, false)?;
-                match channel {
-                    AdcChannel::K30 => {
-                        adc_temp.smbus_write_block_data(config,&tx_config)?;
-                        adc_temp.smbus_read_block_data(convert, &mut rx)?;
-                        Ok(Self::convert_ads(rx))
-                    },
-                    AdcChannel::K15A => {
-                        tx_config[0] = 0xc3; //address of k15a
-                        adc_temp.smbus_write_block_data(config,&tx_config)?;
-                        adc_temp.smbus_read_block_data(convert, &mut rx)?;
-                        Ok(Self::convert_ads(rx))
-                    },
-                    AdcChannel::K15B => {
-                        tx_config[0] = 0xd3; //address of k15b
-                        adc_temp.smbus_write_block_data(config,&tx_config)?;
-                        adc_temp.smbus_read_block_data(convert, &mut rx)?;
-                        Ok(Self::convert_ads(rx))
-                    },
-                    AdcChannel::K15C => {
-                        tx_config[0] = 0xe3; //address of k15c
-                        adc_temp.smbus_write_block_data(config,&tx_config)?;
-                        adc_temp.smbus_read_block_data(convert, &mut rx)?;
-                        Ok(Self::convert_ads(rx))
-                    }
-                }
+                adc_temp.write_all(&tx_config)?;
+                adc_temp.write_all(&[convert])?;
+                adc_temp.read_exact(&mut rx)?;
+                Ok(Self::convert_ads(rx))
             },
             AdcConverter::None => { panic!("Can't read adc because main board is not initialized yet")}
         }

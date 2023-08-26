@@ -7,7 +7,9 @@ This api allows you to much more freely program your software without being limi
 For example network programming, integrating graphics with for example gtk4/slint or makepad for the moduline display. \
 It also allows you to make a lot more use of the Linux environment of these controllers.
 
-Currently tested: MCP3004 ADC on the Moduline Mini V1.11
+## Currently tested:
+* MCP3004 ADC and leds on the Moduline Mini V1.11 \
+* ADS1015 ADC and leds on the Moduline IV V3.03
 
 ## Example
 ```
@@ -51,8 +53,7 @@ async fn async_main() -> io::Result<()> {
 
 ## Yet to test
 All modules \
-GPIO based enclosure LEDs \
-ads1015 ADC
+GPIO based enclosure LEDs
 
 ## Yet to implement
 XCP Stack \
