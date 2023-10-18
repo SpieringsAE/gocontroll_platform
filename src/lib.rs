@@ -49,10 +49,8 @@ mod tests {
         ],
         InputModuleSupply::On);
         let modules: &mut [&mut dyn GOcontrollModule] = &mut [&mut input_module, &mut output_module, &mut input_module_10ch];
-        let main_init_fut = mainboard.init(modules);
+        mainboard.init(modules);
 
         //other initialisation
-
-        futures::executor::block_on(main_init_fut).expect("failed to initialize main board");
     }
 }

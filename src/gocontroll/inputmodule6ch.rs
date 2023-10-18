@@ -154,7 +154,7 @@ impl InputModule6Ch {
         }
     }
 
-    pub async fn get_values(&self) -> io::Result<[i32;6]> {
+    pub fn get_values(&self) -> io::Result<[i32;6]> {
         let mut result: [i32;6] = [0;6];
         let mut tx:[u8;56] = [0;56];
         let mut rx:[u8;56] = [0;56];
@@ -175,7 +175,7 @@ impl InputModule6Ch {
         Ok(result)
     }
 
-    pub async fn reset_pulse_counter(&self, channel: InputModuleChannel, value: i32) -> io::Result<()> {
+    pub fn reset_pulse_counter(&self, channel: InputModuleChannel, value: i32) -> io::Result<()> {
         let mut tx:[u8;56] = [0;56];
         tx[6] = channel as u8;
         tx[7] = value as u8;

@@ -3,12 +3,12 @@ rust api for the GOcontroll Moduline (IV/Mini/Display) controllers
 
 **This is a hobby project and not officially supported by GOcontroll!**
 
-This api allows you to much more freely program your software without being limited by what can be done with the Matlab/Simulink blockset. 
+This api allows you to much more freely program your software without being limited by what can be done with Matlab/Simulink. 
 For example network programming, integrating graphics with for example gtk4/slint or makepad for the moduline display. \
 It also allows you to make a lot more use of the Linux environment of these controllers.
 
 ## Currently tested:
-* MCP3004 ADC and leds on the Moduline Mini V1.11 \
+* MCP3004 ADC and leds on the Moduline Mini V1.11
 * ADS1015 ADC and leds on the Moduline IV V3.03
 
 ## Example

@@ -1,12 +1,16 @@
 [package]
 name = "gocontroll-platform"
+description = "A crate to develop moduline applications in rust"
 version = "0.1.0"
 edition = "2021"
-target_controller = "IV"
+authors = ["GOcontroll <support@gocontroll.com"]
+homepage = "www.gocontroll.com"
+repository = "https://github.com/SpieringsAE/gocontroll_platform"
+license = "MIT"
+keywords = ["gocontroll", "moduline"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-futures = "0.3.28"
 i2c-linux = "0.1.2"
-spidev = "0.5.1"
+spidev = "0.6"

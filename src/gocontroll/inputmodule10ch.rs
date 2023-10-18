@@ -103,7 +103,7 @@ impl InputModule10Ch {
         InputModule10Ch { slot, pulse_counter_reset: [0u8;10], sync_counter: [0u32;6], tx: tx_data, rx: [0u8;56], spidev: None }
     }
 
-    pub async fn get_values(&self) -> io::Result<[i32;10]> {
+    pub fn get_values(&self) -> io::Result<[i32;10]> {
         let mut result: [i32;10] = [0;10];
         let mut tx:[u8;56] = [0;56];
         let mut rx:[u8;56] = [0;56];
@@ -124,7 +124,7 @@ impl InputModule10Ch {
         Ok(result)
     }
 
-    pub async fn reset_pulse_counter(&self, channel: InputModuleChannel, value: i32) -> io::Result<()> {
+    pub fn reset_pulse_counter(&self, channel: InputModuleChannel, value: i32) -> io::Result<()> {
         let mut tx:[u8;56] = [0;56];
         tx[6] = channel as u8;
         tx[7] = value as u8;

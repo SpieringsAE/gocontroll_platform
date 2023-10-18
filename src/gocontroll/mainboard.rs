@@ -153,7 +153,7 @@ impl MainBoard {
     /// Inputmodule6chSupplyConfig::new(InputModuleSupply::On, InputModuleSupply::On, InputModuleSupply::On));
     /// mainboard.init(&mut [&mut input_module]);
     /// ```
-    pub async fn init(&mut self, modules: &mut [&mut dyn GOcontrollModule]) -> io::Result<()>{
+    pub fn init(&mut self, modules: &mut [&mut dyn GOcontrollModule]) -> io::Result<()>{
         let hw = fs::read_to_string("/sys/firmware/devicetree/base/hardware").expect("Cannot find hardware spec, are you running this on a Moduline product?");
         if hw.contains("Moduline IV V3.06") {
             self.module_layout = ModuleLayout::ModulineIV;
@@ -378,7 +378,7 @@ impl MainBoard {
     /// mainboard.init(&mut []);
     /// join(mainboard.read_adc_channel(AdcChannel::K30)).unwrap();
     /// ```
-    pub async fn read_adc_channel(&self, channel: AdcChannel) -> io::Result<u16> {
+    pub fn read_adc_channel(&self, channel: AdcChannel) -> io::Result<u16> {
         match &self.adc {
             AdcConverter::Mcp3004(adcs) => {
                 let mut buffer = String::with_capacity(5);
@@ -444,7 +444,7 @@ impl MainBoard {
         }
     }
 
-    pub async fn set_led(&self, led: EnclosureLed, red: u8, green: u8, blue: u8) -> io::Result<()> {
+    pub fn set_led(&self, led: EnclosureLed, red: u8, green: u8, blue: u8) -> io::Result<()> {
         match &self.led_control {
             LedControl::Rukr => {
                 let mut led_temp = I2c::from_path(RUKR_LEDS)?;

@@ -136,7 +136,7 @@ impl OutputModule6Ch {
         OutputModule6Ch {slot, tx_data, tx_data_2, rx_data: [0u8;50], spidev: None}
     }
 
-    pub async fn set_outputs_get_feedback(&mut self, channel1: u16, channel2: u16, channel3: u16, channel4: u16, channel5: u16, channel6:u16) -> io::Result<OutputModule6ChFeedback> {
+    pub fn set_outputs_get_feedback(&self, channel1: u16, channel2: u16, channel3: u16, channel4: u16, channel5: u16, channel6:u16) -> io::Result<OutputModule6ChFeedback> {
         let mut feedback: OutputModule6ChFeedback = OutputModule6ChFeedback { temperature: 0, groundshift: 0, channel1_current: 0, channel2_current: 0, channel3_current: 0, channel4_current: 0, channel5_current: 0, channel6_current: 0, fault_codes: 0x10000000 };
         let mut potential_err: Option<io::Error> = None;
         let mut tx: [u8;50] = [0;50];
