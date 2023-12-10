@@ -11,6 +11,13 @@ keywords = ["gocontroll", "moduline"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[features]
+default = []
+full = ["leds", "modules", "adcs"]
+leds = ["dep:i2c-linux"]
+modules = ["dep:spidev"]
+adcs = ["dep:i2c-linux"]
+
 [dependencies]
-i2c-linux = "0.1.2"
-spidev = "0.6"
+i2c-linux = { version = "0.1.2", optional = true }
+spidev = { version = "0.6", optional = true }

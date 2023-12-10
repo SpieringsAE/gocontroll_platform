@@ -1,5 +1,6 @@
 pub mod gocontroll;
 
+#[cfg(modules)]
 #[cfg(test)]
 mod tests {
     use crate::gocontroll::{

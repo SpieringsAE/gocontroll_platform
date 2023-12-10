@@ -1,8 +1,12 @@
 use std::{io::{self, prelude::*},fs, path::PathBuf,sync::{Arc,Mutex}};
+#[cfg(feature = "modules")]
 use super::module::{GOcontrollModule,EscapeBootloaderResponse,BOOTMESSAGELENGTH,BOOTMESSAGELENGTHCHECK,CommunicationDirection,MessageType};
+#[cfg(feature = "modules")]
 use spidev::{Spidev, SpidevOptions,SpiModeFlags};
+#[cfg(any(feature = "leds", feature = "adcs"))]
 use i2c_linux::I2c;
 
+#[cfg(feature = "leds")]
 #[allow(unused)]
 #[derive(Debug,Clone)]
 pub enum LedControl {
@@ -11,6 +15,7 @@ pub enum LedControl {
     Gpio,
 }
 
+#[cfg(feature = "adcs")]
 #[allow(unused)]
 #[repr(u8)]
 pub enum AdcChannel {
@@ -20,6 +25,7 @@ pub enum AdcChannel {
     K15C=0xe3,
 }
 
+#[cfg(feature = "leds")]
 #[allow(unused)]
 #[repr(u8)]
 #[derive(Copy,Clone)]
@@ -30,6 +36,7 @@ pub enum EnclosureLed {
     Led4,
 }
 
+#[cfg(feature = "modules")]
 #[allow(unused)]
 #[repr(u8)]
 enum ModuleResetState {
@@ -37,6 +44,7 @@ enum ModuleResetState {
     Low = 0
 }
 
+#[cfg(feature = "adcs")]
 #[allow(unused)]
 #[derive(Debug)]
 pub enum AdcConverter {
@@ -57,13 +65,18 @@ pub enum ModuleLayout {
 
 #[allow(unused)]
 pub struct MainBoard {
+    #[cfg(feature = "leds")]
     led_control: LedControl,
+    #[cfg(feature = "adcs")]
     adc: AdcConverter,
     pub module_layout: ModuleLayout,
+    #[cfg(feature = "modules")]
     pub modules: [Option<usize>;8],
+    #[cfg(feature = "modules")]
     resets: [Option<fs::File>;8],
 }
 
+#[cfg(feature = "modules")]
 #[allow(unused)]
 const SPIDEVS: [&str;8] = [
     "/dev/spidev1.0",
@@ -76,6 +89,7 @@ const SPIDEVS: [&str;8] = [
     "/dev/spidev0.1"    
 ];
 
+#[cfg(feature = "modules")]
 #[allow(unused)]
 const RESETS: [&str;8] = [
     "/sys/class/leds/ResetM-1/brightness",
@@ -88,6 +102,7 @@ const RESETS: [&str;8] = [
     "/sys/class/leds/ResetM-8/brightness",
 ];
 
+#[cfg(feature = "leds")]
 #[allow(unused)]
 const GPIO_LEDS: [&str;12] = [
     "/sys/class/leds/Status1-r/brightness",
@@ -104,9 +119,11 @@ const GPIO_LEDS: [&str;12] = [
     "/sys/class/leds/Status4-b/brightness",
 ];
 
+#[cfg(feature = "leds")]
 #[allow(unused)]
 const RUKR_LEDS: &str = "/dev/i2c-2";
 
+#[cfg(feature = "adcs")]
 #[allow(unused)]
 const ADS_ADC: &str = "/dev/i2c-2";
 
@@ -121,14 +138,166 @@ impl MainBoard {
     /// let mut mainboard = MainBoard::new();
     /// ```
     pub const fn new() -> MainBoard {
-        MainBoard { led_control: LedControl::None,
+        MainBoard {
+            #[cfg(feature = "leds")]
+            led_control: LedControl::None,
+            #[cfg(feature = "adcs")]
             adc: AdcConverter::None,
             module_layout: ModuleLayout::None, 
+            #[cfg(feature = "modules")]
             modules: [None,None,None,None,None,None,None,None],
+            #[cfg(feature = "modules")]
             resets: [None,None,None,None,None,None,None,None],
         }
     }
 
+    pub fn get_hardware_config(&mut self) -> io::Result<()> {
+        let hw = fs::read_to_string("/sys/firmware/devicetree/base/hardware")?;
+        match hw.as_str() {
+            "Moduline IV V3.06" => {
+                self.module_layout = ModuleLayout::ModulineIV;
+                #[cfg(feature = "leds")]{
+                self.led_control = LedControl::Rukr;}
+                #[cfg(feature = "adcs")]{
+                self.adc = AdcConverter::Mcp3004([None,None,None,None]);}
+            },
+            "Moduline Mini V1.11" => {
+                self.module_layout = ModuleLayout::ModulineMini;
+                #[cfg(feature = "leds")]{
+                self.led_control = LedControl::Rukr;}
+                #[cfg(feature = "adcs")]{
+                self.adc = AdcConverter::Mcp3004([None,None,None,None]);}
+            },
+            "Moduline Screen V1.04" => {
+                self.module_layout = ModuleLayout::ModulineDisplay;
+                #[cfg(feature = "leds")]{
+                self.led_control = LedControl::Rukr;}
+                #[cfg(feature = "adcs")]{
+                self.adc = AdcConverter::Mcp3004([None,None,None,None]);}
+            },
+            "Moduline IV V3.00" => {
+                self.module_layout = ModuleLayout::ModulineIV;
+                #[cfg(feature = "leds")]{
+                self.led_control = LedControl::Gpio;}
+                #[cfg(feature = "adcs")]{
+                self.adc = AdcConverter::Ads1015;}
+            },
+            "Moduline IV V3.01" => {
+                self.module_layout = ModuleLayout::ModulineIV;
+                #[cfg(feature = "leds")]{
+                self.led_control = LedControl::Gpio;}
+                #[cfg(feature = "adcs")]{
+                self.adc = AdcConverter::Ads1015;}
+            },
+            "Moduline IV V3.02" => {
+                self.module_layout = ModuleLayout::ModulineIV;
+                #[cfg(feature = "leds")]{
+                self.led_control = LedControl::Rukr;}
+                #[cfg(feature = "adcs")]{
+                self.adc = AdcConverter::Ads1015;}
+            },
+            "Moduline IV V3.03" => {
+                self.module_layout = ModuleLayout::ModulineIV;
+                #[cfg(feature = "leds")]{
+                self.led_control = LedControl::Rukr;}
+                #[cfg(feature = "adcs")]{
+                self.adc = AdcConverter::Ads1015;}
+            },
+            "Moduline IV V3.04" => {
+                self.module_layout = ModuleLayout::ModulineIV;
+                #[cfg(feature = "leds")]{
+                self.led_control = LedControl::Rukr;}
+                #[cfg(feature = "adcs")]{
+                self.adc = AdcConverter::Ads1015;}
+            },
+            "Moduline IV V3.05" => {
+                self.module_layout = ModuleLayout::ModulineIV;
+                #[cfg(feature = "leds")]{
+                self.led_control = LedControl::Rukr;}
+                #[cfg(feature = "adcs")]{
+                self.adc = AdcConverter::Ads1015;}
+            },
+            "Moduline Mini V1.03" => {
+                self.module_layout = ModuleLayout::ModulineMini;
+                #[cfg(feature = "leds")]{
+                self.led_control = LedControl::Rukr;}
+                #[cfg(feature = "adcs")]{
+                self.adc = AdcConverter::Ads1015;}
+            },
+            "Moduline Mini V1.05" => {
+                self.module_layout = ModuleLayout::ModulineMini;
+                #[cfg(feature = "leds")]{
+                self.led_control = LedControl::Rukr;}
+                #[cfg(feature = "adcs")]{
+                self.adc = AdcConverter::Mcp3004([None,None,None,None]);}
+            },
+            "Moduline Mini V1.06" => {
+                self.module_layout = ModuleLayout::ModulineMini;
+                #[cfg(feature = "leds")]{
+                self.led_control = LedControl::Rukr;}
+                #[cfg(feature = "adcs")]{
+                self.adc = AdcConverter::Mcp3004([None,None,None,None]);}
+            },
+            "Moduline Mini V1.07" => {
+                self.module_layout = ModuleLayout::ModulineMini;
+                #[cfg(feature = "leds")]{
+                self.led_control = LedControl::Rukr;}
+                #[cfg(feature = "adcs")]{
+                self.adc = AdcConverter::Mcp3004([None,None,None,None]);}
+            },
+            "Moduline Mini V1.10" => {
+                self.module_layout = ModuleLayout::ModulineMini;
+                #[cfg(feature = "leds")]{
+                self.led_control = LedControl::None;}
+                #[cfg(feature = "adcs")]{
+                self.adc = AdcConverter::Mcp3004([None,None,None,None]);}
+            },
+            "Moduline Screen V1.02" => {
+                self.module_layout = ModuleLayout::ModulineDisplay;
+                #[cfg(feature = "leds")]{
+                self.led_control = LedControl::None;}
+                #[cfg(feature = "adcs")]{
+                self.adc = AdcConverter::Mcp3004([None,None,None,None]);}
+            },
+            "Moduline Screen V1.03" => {
+                self.module_layout = ModuleLayout::ModulineDisplay;
+                #[cfg(feature = "leds")]{
+                self.led_control = LedControl::None;}
+                #[cfg(feature = "adcs")]{
+                self.adc = AdcConverter::Mcp3004([None,None,None,None]);}
+            },
+            "Moduline Screen V1.04" => {
+                self.module_layout = ModuleLayout::ModulineDisplay;
+                #[cfg(feature = "leds")]{
+                self.led_control = LedControl::None;}
+                #[cfg(feature = "adcs")]{
+                self.adc = AdcConverter::Mcp3004([None,None,None,None]);}
+            },
+            "Moduline Screen V1.05" => {
+                self.module_layout = ModuleLayout::ModulineDisplay;
+                #[cfg(feature = "leds")]{
+                self.led_control = LedControl::None;}
+                #[cfg(feature = "adcs")]{
+                self.adc = AdcConverter::Mcp3004([None,None,None,None]);}
+            },
+            _ => {
+                self.module_layout = ModuleLayout::ModulineIV;
+                #[cfg(feature = "leds")]{
+                self.led_control = LedControl::Rukr;}
+                #[cfg(feature = "adcs")]{
+                self.adc = AdcConverter::Mcp3004([None,None,None,None]);}
+            }
+        }
+        #[cfg(feature = "adcs")] {
+            self.adc = self.get_adcs()?;
+        }
+        #[cfg(feature = "leds")]
+        self.initialize_leds()?;
+
+        Ok(())
+    }
+
+    #[cfg(feature = "modules")]
     /// Initializes the MainBoard object.
     /// Gets the hardware configuration, puts the configuration in the provided modules, initializes the adcs and leds
     /// 
@@ -154,80 +323,7 @@ impl MainBoard {
     /// mainboard.init(&mut [&mut input_module]);
     /// ```
     pub fn init(&mut self, modules: &mut [&mut dyn GOcontrollModule]) -> io::Result<()>{
-        let hw = fs::read_to_string("/sys/firmware/devicetree/base/hardware").expect("Cannot find hardware spec, are you running this on a Moduline product?");
-        if hw.contains("Moduline IV V3.06") {
-            self.module_layout = ModuleLayout::ModulineIV;
-            self.led_control = LedControl::Rukr;
-            self.adc = AdcConverter::Mcp3004([None,None,None,None]);
-        } else if hw.contains("Moduline Mini V1.11") {
-            self.module_layout = ModuleLayout::ModulineMini;
-            self.led_control = LedControl::Rukr;
-            self.adc = AdcConverter::Mcp3004([None,None,None,None]);
-        } else if hw.contains("Moduline Screen V1.04") {
-            self.module_layout = ModuleLayout::ModulineDisplay;
-            self.led_control = LedControl::Rukr;
-            self.adc = AdcConverter::Mcp3004([None,None,None,None]);
-        } else if hw.contains("Moduline IV V3.00") {
-            self.module_layout = ModuleLayout::ModulineIV;
-            self.led_control = LedControl::Gpio;
-            self.adc = AdcConverter::Ads1015;
-        } else if hw.contains("Moduline IV V3.01") {
-            self.module_layout = ModuleLayout::ModulineIV;
-            self.led_control = LedControl::Gpio;
-            self.adc = AdcConverter::Ads1015;
-        } else if hw.contains("Moduline IV V3.02") {
-            self.module_layout = ModuleLayout::ModulineIV;
-            self.led_control = LedControl::Rukr;
-            self.adc = AdcConverter::Ads1015;
-        } else if hw.contains("Moduline IV V3.03") {
-            self.module_layout = ModuleLayout::ModulineIV;
-            self.led_control = LedControl::Rukr;
-            self.adc = AdcConverter::Ads1015;
-        } else if hw.contains("Moduline IV V3.04") {
-            self.module_layout = ModuleLayout::ModulineIV;
-            self.led_control = LedControl::Rukr;
-            self.adc = AdcConverter::Ads1015;
-        } else if hw.contains("Moduline IV V3.05") {
-            self.module_layout = ModuleLayout::ModulineIV;
-            self.led_control = LedControl::Rukr;
-            self.adc = AdcConverter::Ads1015;
-        } else if hw.contains("Moduline Mini V1.03") {
-            self.module_layout = ModuleLayout::ModulineMini;
-            self.led_control = LedControl::Rukr;
-            self.adc = AdcConverter::Ads1015;
-        } else if hw.contains("Moduline Mini V1.05") {
-            self.module_layout = ModuleLayout::ModulineMini;
-            self.led_control = LedControl::Rukr;
-            self.adc = AdcConverter::Mcp3004([None,None,None,None]);
-        } else if hw.contains("Moduline Mini V1.06") {
-            self.module_layout = ModuleLayout::ModulineMini;
-            self.led_control = LedControl::Rukr;
-            self.adc = AdcConverter::Mcp3004([None,None,None,None]);
-        } else if hw.contains("Moduline Mini V1.07") {
-            self.module_layout = ModuleLayout::ModulineMini;
-            self.led_control = LedControl::Rukr;
-            self.adc = AdcConverter::Mcp3004([None,None,None,None]);
-        } else if hw.contains("Moduline Mini V1.10") {
-            self.module_layout = ModuleLayout::ModulineMini;
-            self.led_control = LedControl::Rukr;
-            self.adc = AdcConverter::Mcp3004([None,None,None,None]);
-        } else if hw.contains("Moduline Screen V1.02") {
-            self.module_layout = ModuleLayout::ModulineDisplay;
-            self.led_control = LedControl::Rukr;
-            self.adc = AdcConverter::Mcp3004([None,None,None,None]);
-        } else if hw.contains("Moduline Screen V1.03") {
-            self.module_layout = ModuleLayout::ModulineDisplay;
-            self.led_control = LedControl::Rukr;
-            self.adc = AdcConverter::Mcp3004([None,None,None,None]);
-        } else {
-            self.module_layout = ModuleLayout::ModulineIV;
-            self.led_control = LedControl::Rukr;
-            self.adc = AdcConverter::Mcp3004([None,None,None,None]);
-        }
-
-        self.adc = self.get_adcs()?;
-
-        self.initialize_leds()?;
+        self.get_hardware_config()?;
 
         if modules.len() > self.module_layout as usize +1 { panic!("Cannot initialize more than {} modules on this controller", modules.len());}
         for i in 0..self.module_layout as usize {
@@ -242,7 +338,7 @@ impl MainBoard {
 
         Ok(())
     }
-
+    #[cfg(feature = "modules")]
     pub fn check_module(&mut self, module: &dyn GOcontrollModule) -> io::Result<()> {
         if module.get_slot() as u8 > self.module_layout as u8 {
             println!("Could not initialize module in {}, it doesn't exist on this controller.", module.get_slot());
@@ -256,7 +352,7 @@ impl MainBoard {
         }
         Ok(())
     }
-
+    #[cfg(feature = "modules")]
     fn init_modules(&mut self, modules: & [&mut dyn GOcontrollModule]) -> io::Result<()> {
         
         let mut module_state: [u8;8] = [0;8];
@@ -298,13 +394,13 @@ impl MainBoard {
         }
         Ok(())
     }
-
+    #[cfg(feature = "modules")]
     fn reset_module_state(&mut self, slot: &usize, state: ModuleResetState) -> io::Result<()> {
         const STATE: [&str;2] = ["0", "1"];
         self.resets[*slot].as_mut().expect("Incorrectly initialized module reset").write_all(STATE[state as usize].as_bytes())?;
         Ok(())
     }
-
+    #[cfg(feature = "modules")]
     pub fn module_checksum(data:&[u8], length:usize) -> io::Result<u8> {
         let mut check_sum:u8 = 0;
         for item in data.iter().take(length-1) {
@@ -316,7 +412,7 @@ impl MainBoard {
             Err(io::Error::from(io::ErrorKind::InvalidData))
         }
     }
-
+    #[cfg(feature = "modules")]
     pub fn create_spi(slot: usize) -> io::Result<Spidev> {
         let mut spi = Spidev::open(SPIDEVS[slot])?;
         let options = SpidevOptions::new()
@@ -327,14 +423,14 @@ impl MainBoard {
         spi.configure(&options)?;
         Ok(spi)
     }
-
+    #[cfg(feature = "modules")]
     fn create_reset(slot: usize) -> io::Result<fs::File> {
         fs::File::options()
             .read(false)
             .write(true)
             .open(RESETS[slot])
     }
-
+    #[cfg(feature = "adcs")]
     fn get_adcs(&self) -> io::Result<AdcConverter> {
         match &self.adc {
             AdcConverter::Ads1015 => {
@@ -363,6 +459,7 @@ impl MainBoard {
         }
     }
 
+    #[cfg(feature = "adcs")]
     /// Reads from one of the 4 ADC channels
     /// 
     /// # Arguments
@@ -414,6 +511,7 @@ impl MainBoard {
         }
     }
 
+    #[cfg(feature = "adcs")]
     fn convert_mcp(string_val: &str) -> u16 {
         if string_val.eq("") {
             0
@@ -421,6 +519,7 @@ impl MainBoard {
             (string_val.parse::<f32>().unwrap()*25.54f32) as u16
         }
     }
+    #[cfg(feature = "adcs")]
     fn convert_ads(read_buff:[u8;2]) -> u16 {
         if (read_buff[0] & 0x80) >> 7 == 1 {
             0
@@ -428,7 +527,7 @@ impl MainBoard {
             ((((read_buff[0] as u16) << 4) | ((read_buff[1] as u16 & 0xf0) >> 4)) as f32 * 15.608f32) as u16
         }
     }
-
+    #[cfg(feature = "leds")]
     fn initialize_leds(&self) -> io::Result<()> {
         match &self.led_control {
             LedControl::Rukr => {
@@ -443,7 +542,7 @@ impl MainBoard {
             }
         }
     }
-
+    #[cfg(feature = "leds")]
     pub fn set_led(&self, led: EnclosureLed, red: u8, green: u8, blue: u8) -> io::Result<()> {
         match &self.led_control {
             LedControl::Rukr => {
@@ -465,7 +564,7 @@ impl MainBoard {
         }
         Ok(())
     }
-
+    #[cfg(feature = "modules")]
     pub fn send_module_spi(spidev: Arc<Mutex<Spidev>>, command: u8, direction: CommunicationDirection, module_id: u8, message_type: MessageType, message_index: u8, tx:&mut [u8], length:usize) -> io::Result<()> {
         tx[0] = command;
         tx[1] = {length-1} as u8;
@@ -478,7 +577,7 @@ impl MainBoard {
         spidev.lock().as_mut().unwrap().transfer(&mut transfer)?;
         Ok(())
     }
-
+    #[cfg(feature = "modules")]
     pub fn send_receive_module_spi(spidev: Arc<Mutex<Spidev>>, command: u8, direction: CommunicationDirection, module_id: u8, message_type: MessageType, message_index: u8, tx:&mut [u8], rx:&mut [u8], length:usize) -> io::Result<()> {
         tx[0] = command;
         tx[1] = {length-1} as u8;
@@ -495,14 +594,14 @@ impl MainBoard {
         MainBoard::module_checksum(&rx, length)?;
         Ok(())        
     }
-
+    #[cfg(feature = "modules")]
     pub fn spi_dummy_send(module: &dyn GOcontrollModule) -> io::Result<()> {
         const SPIDUMMY: [u8;6] = [1,2,3,4,5,6];
         let mut transfer = spidev::SpidevTransfer::write(&SPIDUMMY);
         module.get_spidev().lock().as_mut().unwrap().transfer(&mut transfer)?;
         Ok(())
     }
-
+    #[cfg(feature = "modules")]
     pub fn escape_module_bootloader(module: &dyn GOcontrollModule) ->io::Result<EscapeBootloaderResponse> {
         let mut tx: [u8;BOOTMESSAGELENGTHCHECK] = [0;BOOTMESSAGELENGTHCHECK];
         let mut rx: [u8;BOOTMESSAGELENGTHCHECK] = [0;BOOTMESSAGELENGTHCHECK];

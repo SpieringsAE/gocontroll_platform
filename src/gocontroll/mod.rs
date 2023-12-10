@@ -1,5 +1,9 @@
 pub mod mainboard;
+#[cfg(feature = "modules")]
 pub mod module;
+#[cfg(feature = "modules")]
 pub mod inputmodule6ch;
+#[cfg(feature = "modules")]
 pub mod inputmodule10ch;
+#[cfg(feature = "modules")]
 pub mod outputmodule6ch;
